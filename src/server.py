@@ -1,7 +1,7 @@
 import logging
 import sys
 
-import numpy as np
+import talib.abstract as ta
 from mcp.server.fastmcp import FastMCP
 import json
 
