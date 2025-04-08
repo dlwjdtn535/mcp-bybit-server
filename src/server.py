@@ -59,6 +59,11 @@ def register_attendee(party_name: str, attendee_name: str) -> str:
 
     return f"성공: {attendee_name}님이 {party_name} 세미나에 등록되었습니다."
 
+
+@mcp.tool()
+def data_example() -> str:
+    return "data_example"
+
 @mcp.tool()
 def data():
     price_data = {
@@ -71,7 +76,7 @@ def data():
     # 결과 출력
     print(sma)
 
-    return price_data
+    return "SMA 계산 완료"
 
 @mcp.prompt()
 def prompt(message: str) -> str:
