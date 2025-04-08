@@ -19,9 +19,6 @@ startCommand:
       bybitSecretKey:
         type: string
         description: Bybit API secret key.
-      bybitSecretKeyAAAAA:
-        type: string
-        description: Bybit API secret key.
   commandFunction:
     # A function that produces the CLI command to start the MCP on stdio.
     |-
@@ -31,7 +28,10 @@ startCommand:
         'run',
         '-i',
         '--rm',
-        'dlwjdtn535/mcp-bybit-trader:latest'
+        '-e', `TESTNET=${config.bybitTestnet}`,
+        '-e', `ACCESS_KEY=${config.bybitAccessKey}`,
+        '-e', `SECRET_KEY=${config.bybitSecretKey}`,
+        'smithery/mcp-server-demo:latest'
       ]
     })
   exampleConfig: {}
