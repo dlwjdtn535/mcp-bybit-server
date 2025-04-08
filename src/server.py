@@ -4,7 +4,7 @@ import sys
 from mcp.server.fastmcp import FastMCP
 import json
 
-mcp = FastMCP("Seminar Management System", port=3000)
+mcp = FastMCP("Seminar Management System", port=6277)
 seminar_data = {
     "Python 세미나": [
         "홍길동",
