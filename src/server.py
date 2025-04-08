@@ -4,7 +4,9 @@ import sys
 from mcp.server.fastmcp import FastMCP
 import json
 
-mcp = FastMCP("Seminar Management System")
+mcp = FastMCP("Seminar Management System",
+                description="A system to manage seminar registrations and details",
+                port=3000)
 seminar_data = {
     "Python 세미나": [
         "홍길동",
@@ -81,7 +83,7 @@ def prompt(message: str) -> str:
 
 
 def main():
-    mcp.run(transport="sse")
+    mcp.run(transport="sse", )
 
 if __name__ == "__main__":
     main()
