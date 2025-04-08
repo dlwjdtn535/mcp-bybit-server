@@ -63,9 +63,9 @@ def data_example() -> str:
     return "data_example"
 
 
-@mcp.tool()
-def data_example_data() -> str:
-    return "data_example_data"
+# @mcp.tool()
+# def data_example_data() -> str:
+#     return "data_example_data"
 
 @mcp.prompt()
 def prompt(message: str) -> str:
