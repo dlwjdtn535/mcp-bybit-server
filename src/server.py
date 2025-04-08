@@ -1,6 +1,8 @@
 import logging
 import sys
 
+import numpy as np
+import talib.abstract as ta
 from mcp.server.fastmcp import FastMCP
 import json
 
@@ -56,6 +58,20 @@ def register_attendee(party_name: str, attendee_name: str) -> str:
     seminar_data[party_name].append(attendee_name)
 
     return f"성공: {attendee_name}님이 {party_name} 세미나에 등록되었습니다."
+
+@mcp.tool()
+def data():
+    price_data = {
+        "close": np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dtype=np.float64)
+    }
+
+    # SMA 계산
+    sma = ta.SMA(price_data, timeperiod=5)
+
+    # 결과 출력
+    print(sma)
+
+    return price_data
 
 @mcp.prompt()
 def prompt(message: str) -> str:
