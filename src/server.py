@@ -6,7 +6,7 @@ import json
 
 mcp = FastMCP("Seminar Management System",
                 description="A system to manage seminar registrations and details",
-                port=3000)
+                port=6277)
 seminar_data = {
     "Python 세미나": [
         "홍길동",
