@@ -43,31 +43,43 @@ def get_seminar_details(party_name: str) -> str:
     }
 
     return json.dumps(seminar_info, ensure_ascii=False, indent=2)
-#
-# @mcp.tool()
-# def register_attendee(party_name: str, attendee_name: str) -> str:
-#     logger.info(f"Registering attendee: {attendee_name} for seminar: {party_name}")
-#
-#     # 실제 구현에서는 데이터베이스에 참석자를 추가하는 로직이 있을 것입니다
-#     if party_name not in seminar_data:
-#         return f"오류: {party_name} 세미나가 존재하지 않습니다."
-#
-#     if attendee_name in seminar_data[party_name]:
-#         return f"오류: {attendee_name}님은 이미 {party_name} 세미나에 등록되어 있습니다."
-#
-#     seminar_data[party_name].append(attendee_name)
-#
-#     return f"성공: {attendee_name}님이 {party_name} 세미나에 등록되었습니다."
-#
-#
-# @mcp.tool()
-# def data_example() -> str:
-#     return "data_example"
-#
-#
-# @mcp.tool()
-# def data_example_data() -> str:
-#     return "data_example_data"
+
+@mcp.tool()
+def register_attendee(party_name: str, attendee_name: str) -> str:
+    logger.info(f"Registering attendee: {attendee_name} for seminar: {party_name}")
+
+    # 실제 구현에서는 데이터베이스에 참석자를 추가하는 로직이 있을 것입니다
+    if party_name not in seminar_data:
+        return f"오류: {party_name} 세미나가 존재하지 않습니다."
+
+    if attendee_name in seminar_data[party_name]:
+        return f"오류: {attendee_name}님은 이미 {party_name} 세미나에 등록되어 있습니다."
+
+    seminar_data[party_name].append(attendee_name)
+
+    return f"성공: {attendee_name}님이 {party_name} 세미나에 등록되었습니다."
+
+
+@mcp.tool()
+def data_example() -> str:
+    return "data_example"
+
+
+@mcp.tool()
+def data_example_data() -> str:
+    return "data_example_data"
+
+
+@mcp.tool()
+def data_example_data_data() -> str:
+    price_data = {
+        "close": np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], dtype=np.float64)
+    }
+
+    # SMA 계산
+    sma = ta.SMA(price_data, timeperiod=5)
+
+    return sma
 
 @mcp.prompt()
 def prompt(message: str) -> str:

@@ -5,6 +5,24 @@ RUN mkdir -p /root/.local
 # Install the project into `/app`
 WORKDIR /app
 
+
+# 시스템 의존성 설치
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# TA-Lib
+RUN wget https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-src.tar.gz && \
+  tar -xzf ta-lib-0.6.4-src.tar.gz && \
+  cd ta-lib-0.6.4/ && \
+  ./configure --prefix=/usr --build=aarch64-unknown-linux-gnu && \
+  make && \
+  make install
+
+RUN rm -R ta-lib-0.6.4-src.tar.gz
+
 # Enable bytecode compilation
 ENV UV_COMPILE_BYTECODE=1
 
