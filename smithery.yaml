@@ -6,7 +6,9 @@ startCommand:
     # JSON Schema defining the configuration options for the MCP.
     type: object
     required:
-      - githubPersonalAccessToken
+      - bybitTestnet
+      - bybitAccessKey
+      - bybitSecretKey
     properties:
       bybitTestnet:
         type: boolean
