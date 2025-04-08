@@ -5,24 +5,6 @@ RUN mkdir -p /root/.local
 # Install the project into `/app`
 WORKDIR /app
 
-
-# 시스템 의존성 설치
-RUN apt-get update && apt-get install -y \
-    curl \
-    build-essential \
-    wget \
-    && rm -rf /var/lib/apt/lists/*
-
-# TA-Lib
-RUN wget https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-src.tar.gz && \
-  tar -xzf ta-lib-0.6.4-src.tar.gz && \
-  cd ta-lib-0.6.4/ && \
-  ./configure --prefix=/usr --build=aarch64-unknown-linux-gnu && \
-  make && \
-  make install
-
-RUN rm -R ta-lib-0.6.4-src.tar.gz
-
 # Enable bytecode compilation
 ENV UV_COMPILE_BYTECODE=1
 
@@ -45,6 +27,24 @@ FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
+# 시스템 의존성 설치
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# TA-Lib
+RUN wget https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-src.tar.gz && \
+  tar -xzf ta-lib-0.6.4-src.tar.gz && \
+  cd ta-lib-0.6.4/ && \
+  ./configure --prefix=/usr --build=aarch64-unknown-linux-gnu && \
+  make && \
+  make install
+
+RUN rm -R ta-lib-0.6.4-src.tar.gz
+
+
 # Create necessary directories in the second stage
 RUN mkdir -p /root/.local
 
@@ -53,8 +53,6 @@ COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
-
-EXPOSE 8000
 
 # when running the container, add --db-path and a bind mount to the host's db file
 ENTRYPOINT ["mcp-server-demo"]
