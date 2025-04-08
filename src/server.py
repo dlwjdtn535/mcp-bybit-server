@@ -81,7 +81,7 @@ def prompt(message: str) -> str:
 
 
 def main():
-    mcp.run(transport="sse")
+    mcp.run(transport="stdio")
 
 if __name__ == "__main__":
     main()
