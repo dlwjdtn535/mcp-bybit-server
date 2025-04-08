@@ -153,12 +153,14 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "mcp", extra = ["cli"] },
+    { name = "numpy" },
     { name = "ta-lib" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "mcp", extras = ["cli"], specifier = ">=1.6.0" },
+    { name = "numpy", specifier = "==2.2.4" },
     { name = "ta-lib", specifier = ">=0.6.3" },
 ]
 
