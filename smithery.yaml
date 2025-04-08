@@ -6,7 +6,6 @@ startCommand:
     # JSON Schema defining the configuration options for the MCP.
     type: object
     required:
-      - bybitTestnet
       - bybitAccessKey
       - bybitSecretKey
     properties:
