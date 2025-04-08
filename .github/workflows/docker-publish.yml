@@ -27,4 +27,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: smithery/mcp-server-demo:latest
+          tags: dlwjdtn535/mcp-server-demo:latest
