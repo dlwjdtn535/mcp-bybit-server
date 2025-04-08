@@ -22,6 +22,6 @@ startCommand:
     # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
     |-
     (config) => ({
-      command: 'mcp-server-demo', env: { TESTNET: config.bybitTestnet, ACCESS_KEY: config.bybitAccessKey, SECRET_KEY: config.bybitSecretKey } })
+      command: 'mcp-server-demo', env: { TESTNET: config.bybitTestnet, ACCESS_KEY: config.bybitAccessKey, SECRET_KEY: config.bybitSecretKey }
     })
   exampleConfig: {}
