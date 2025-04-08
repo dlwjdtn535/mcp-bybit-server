@@ -31,7 +31,7 @@ startCommand:
         '-e', `TESTNET=${config.bybitTestnet}`,
         '-e', `ACCESS_KEY=${config.bybitAccessKey}`,
         '-e', `SECRET_KEY=${config.bybitSecretKey}`,
-        'smithery/mcp-server-demo:latest'
+        'dlwjdtn535/mcp-server-demo:latest'
       ]
     })
   exampleConfig: {}
