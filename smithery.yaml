@@ -20,9 +20,15 @@ startCommand:
         type: string
         description: Bybit API secret key.
   commandFunction:
-    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    # A function that produces the CLI command to start the MCP on stdio.
     |-
-    (config) => ({
-      command: 'mcp-server-demo', env: { TESTNET: config.bybitTestnet, ACCESS_KEY: config.bybitAccessKey, SECRET_KEY: config.bybitSecretKey }
+    (config) => ({ 
+      command: 'docker', 
+      args: [
+        'run',
+        '-i',
+        '--rm',
+        'dlwjdtn535/mcp-bybit-trader:latest'
+      ]
     })
   exampleConfig: {}
