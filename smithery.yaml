@@ -6,10 +6,6 @@ startCommand:
       - bybitAccessKey
       - bybitSecretKey
     properties:
-      bybitTestnet:
-        type: boolean
-        default: false
-        description: Whether to use the Bybit testnet or mainnet.
       bybitAccessKey:
         type: string
         description: Bybit API access key.
@@ -18,4 +14,4 @@ startCommand:
         description: Bybit API secret key.
   commandFunction:
     |-
-    config => ({command: 'mcp-server-demo', args: [], env: { SUPABASE_PROJECT_REF: config.bybitAccessKey, SUPABASE_DB_PASSWORD: config.bybitSecretKey } })
+    config => ({command: 'mcp-server-demo', args: [], env: { ACCESS_KEY: config.bybitAccessKey, SECRET_KEY: config.bybitSecretKey } })

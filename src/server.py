@@ -28,45 +28,44 @@ bybit_service = BybitService()
 # Register MCP tools
 mcp = FastMCP()
 
+
 @mcp.tool()
-def get_ssssssssss(
+def get_kline(
         category: str = Field(description="Category (spot, linear, inverse, etc.)"),
-        symbol: Optional[str] = Field(default=None, description="Symbol (e.g., BTCUSDT)"),
-        orderId: Optional[str] = Field(default=None, description="Order ID"),
-        orderLinkId: Optional[str] = Field(default=None, description="Order link ID"),
-        orderFilter: Optional[str] = Field(default=None, description="Order filter"),
-        limit: int = Field(default=50, description="Number of orders to retrieve")
+        symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+        interval: str = Field(description="Time interval (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M)"),
+        start: Optional[int] = Field(default=None, description="Start time in milliseconds"),
+        end: Optional[int] = Field(default=None, description="End time in milliseconds"),
+        limit: int = Field(default=200, description="Number of records to retrieve")
 ) -> Dict:
     """
-    Get open orders
+    Get K-line (candlestick) data
 
     Args:
         category (str): Category (spot, linear, inverse, etc.)
-        symbol (Optional[str]): Symbol (e.g., BTCUSDT)
-        orderId (Optional[str]): Order ID
-        orderLinkId (Optional[str]): Order link ID
-        orderFilter (Optional[str]): Order filter
-        limit (int): Number of orders to retrieve
+        symbol (str): Symbol (e.g., BTCUSDT)
+        interval (str): Time interval (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M)
+        start (Optional[int]): Start time in milliseconds
+        end (Optional[int]): End time in milliseconds
+        limit (int): Number of records to retrieve
 
     Returns:
-        Dict: Open orders
+        Dict: K-line data
 
     Example:
-        get_open_orders("spot", "BTCUSDT", "123456789", "link123", "Order", 10)
+        get_kline("spot", "BTCUSDT", "1h", 1625097600000, 1625184000000, 100)
 
     Reference:
-        https://bybit-exchange.github.io/docs/v5/order/open-order
+        https://bybit-exchange.github.io/docs/v5/market/kline
     """
     try:
-        result = bybit_service.get_open_orders(
-            category, symbol, orderId, orderLinkId, orderFilter, limit
-        )
+        result = bybit_service.get_kline(category, symbol, interval, start, end, limit)
         if result.get("retCode") != 0:
-            logger.error(f"Failed to get open orders: {result.get('retMsg')}")
+            logger.error(f"Failed to get K-line data: {result.get('retMsg')}")
             return {"error": result.get("retMsg")}
         return result
     except Exception as e:
-        logger.error(f"Failed to get open orders: {e}", exc_info=True)
+        logger.error(f"Failed to get K-line data: {e}", exc_info=True)
         return {"error": str(e)}
 
 
