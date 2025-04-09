@@ -19,9 +19,6 @@ startCommand:
       bybitSecretKey:
         type: string
         description: Bybit API secret key.
-      bybitSecretKey12321:
-        type: string
-        description: Bybit API secret key.
   commandFunction:
     # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
     |-
