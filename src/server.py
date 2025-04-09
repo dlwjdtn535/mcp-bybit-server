@@ -29,7 +29,7 @@ bybit_service = BybitService()
 mcp = FastMCP()
 
 @mcp.tool()
-def get_qwqwq(
+def get_ssssssssss(
         category: str = Field(description="Category (spot, linear, inverse, etc.)"),
         symbol: Optional[str] = Field(default=None, description="Symbol (e.g., BTCUSDT)"),
         orderId: Optional[str] = Field(default=None, description="Order ID"),
