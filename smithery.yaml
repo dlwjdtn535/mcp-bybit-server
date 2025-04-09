@@ -18,4 +18,4 @@ startCommand:
         description: Bybit API secret key.
   commandFunction:
     |-
-    config => ({command: 'mcp-server-demo', args: [], env: {TESTNET: config.bybitTestnet}})
+    config => ({command: 'mcp-server-demo', args: []})
