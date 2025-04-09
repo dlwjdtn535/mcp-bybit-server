@@ -14,4 +14,4 @@ startCommand:
         description: Bybit API secret key.
   commandFunction:
     |-
-    config => ({command: 'mcp-server-demo', args: [], env: { ACCESS_KEY: config.bybitAccessKey, SECRET_KEY: config.bybitSecretKey } })
+    config => ({command: 'docker', args: ['run', '-i', '--rm', 'dlwjdtn535/mcp-bybit-trader:latest'] })
