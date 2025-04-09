@@ -1,7 +1,7 @@
 # Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
 
 startCommand:
-  type: stdio
+  type: sse
   configSchema:
     # JSON Schema defining the configuration options for the MCP.
     type: object
@@ -20,7 +20,7 @@ startCommand:
         type: string
         description: Bybit API secret key.
   commandFunction:
-    # A function that produces the CLI command to start the MCP on stdio.
+    # A function that produces the CLI command to start the MCP on SSE.
     |-
     (config) => ({ 
       command: 'docker', 
@@ -28,10 +28,14 @@ startCommand:
         'run',
         '-i',
         '--rm',
+        '-p', '6277:6277',  # Expose SSE port
         '-e', `TESTNET=${config.bybitTestnet}`,
         '-e', `ACCESS_KEY=${config.bybitAccessKey}`,
         '-e', `SECRET_KEY=${config.bybitSecretKey}`,
         'dlwjdtn535/mcp-server-demo:latest'
       ]
     })
-  exampleConfig: {}
+  exampleConfig:
+    bybitTestnet: true
+    bybitAccessKey: "your-access-key-here"
+    bybitSecretKey: "your-secret-key-here"
