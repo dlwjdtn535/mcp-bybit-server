@@ -1,29 +1,15 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
 startCommand:
   type: stdio
   configSchema:
-    type: object
-    required:
-      - bybitAccessKey
-      - bybitSecretKey
-    properties:
-      bybitTestnet:
-        type: boolean
-        default: false
-        description: Whether to use the Bybit testnet or mainnet.
-      bybitAccessKey:
-        type: string
-        description: Bybit API access key.
-      bybitSecretKey:
-        type: string
-        description: Bybit API secret key.
+    # JSON Schema defining the configuration options for the MCP.
+    {}
   commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
     |-
     (config) => ({
       command: 'mcp-server-demo',
-      args: [],
-      env: { TESTNET: config.bybitTestnet, ACCESS_KEY: config.bybitAccessKey, SECRET_KEY: config.bybitSecretKey }
+      args: []
     })
-  exampleConfig:
-    bybitTestnet: true
-    bybitAccessKey: "your-access-key-here"
-    bybitSecretKey: "your-secret-key-here"
+  exampleConfig: {}
