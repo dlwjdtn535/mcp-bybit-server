@@ -23,4 +23,4 @@ WORKDIR /app
 EXPOSE 8000
 
 # when running the container, add --db-path and a bind mount to the host's db file
-ENTRYPOINT ["python", "-u", "src/server.py"]
+ENTRYPOINT ["mcp", "run", "src/server.py"]
