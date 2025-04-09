@@ -1,5 +1,5 @@
 startCommand:
-  type: stdio
+  type: docker
   configSchema:
     type: object
     required:
