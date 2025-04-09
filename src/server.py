@@ -28,9 +28,48 @@ bybit_service = BybitService()
 # Register MCP tools
 mcp = FastMCP()
 
+@mcp.tool()
+def get_kline(
+        category: str = Field(description="Category (spot, linear, inverse, etc.)"),
+        symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+        interval: str = Field(description="Time interval (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M)"),
+        start: Optional[int] = Field(default=None, description="Start time in milliseconds"),
+        end: Optional[int] = Field(default=None, description="End time in milliseconds"),
+        limit: int = Field(default=200, description="Number of records to retrieve")
+) -> Dict:
+    """
+    Get K-line (candlestick) data
+
+    Args:
+        category (str): Category (spot, linear, inverse, etc.)
+        symbol (str): Symbol (e.g., BTCUSDT)
+        interval (str): Time interval (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M)
+        start (Optional[int]): Start time in milliseconds
+        end (Optional[int]): End time in milliseconds
+        limit (int): Number of records to retrieve
+
+    Returns:
+        Dict: K-line data
+
+    Example:
+        get_kline("spot", "BTCUSDT", "1h", 1625097600000, 1625184000000, 100)
+
+    Reference:
+        https://bybit-exchange.github.io/docs/v5/market/kline
+    """
+    try:
+        result = bybit_service.get_kline(category, symbol, interval, start, end, limit)
+        if result.get("retCode") != 0:
+            logger.error(f"Failed to get K-line data: {result.get('retMsg')}")
+            return {"error": result.get("retMsg")}
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get K-line data: {e}", exc_info=True)
+        return {"error": str(e)}
+
 
 @mcp.tool()
-def get_eeeeeeeee(
+def get_aaaaaaaaaaa(
         category: str = Field(description="Category (spot, linear, inverse, etc.)"),
         symbol: Optional[str] = Field(default=None, description="Symbol (e.g., BTCUSDT)"),
         orderId: Optional[str] = Field(default=None, description="Order ID"),
