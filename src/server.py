@@ -26,10 +26,7 @@ for key, value in os.environ.items():
 bybit_service = BybitService()
 
 # Register MCP tools
-mcp = FastMCP(
-    title="MCP Bybit Trader",
-    description="MCP-based Bybit Trading Bot",
-)
+mcp = FastMCP()
 
 # Register MCP tools
 @mcp.tool()
