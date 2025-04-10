@@ -1,7 +1,7 @@
 [project]
-name = "mcp-server"
-version = "0.1.2"
-description = "Bybit Trader MCP Server"
+name = "mcp-server-demo"
+version = "0.1.0"
+description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-mcp-server = "server:main"
+mcp-server-demo = "server:main"
 
 [build-system]
 requires = ["hatchling"]

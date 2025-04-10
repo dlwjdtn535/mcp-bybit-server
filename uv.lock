@@ -189,8 +189,8 @@ cli = [
 ]
 
 [[package]]
-name = "mcp-server"
-version = "0.1.2"
+name = "mcp-server-demo"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "beaker" },
