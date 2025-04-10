@@ -17,4 +17,4 @@ startCommand:
         description: Bybit API secret key.
   commandFunction:
     |-
-    config => ({command: 'mcp-server-demo', args: [], env: { ACCESS_KEY: config.bybitAccessKey, SECRET_KEY: config.bybitSecretKey } })
+    config => ({url: 'http://0.0.0.0:8000/sse' })
