@@ -189,7 +189,7 @@ cli = [
 ]
 
 [[package]]
-name = "mcp-server-demo"
+name = "mcp-bybit-trader"
 version = "0.1.2"
 source = { editable = "." }
 dependencies = [

@@ -29,21 +29,13 @@ Make sure you have pulled the image first: `docker pull dlwjdtn535/mcp-bybit-tra
       "command": "docker",
       "args": [
         "run",
-        "--rm", // Automatically remove the container when it exits
-        "-e", "ACCESS_KEY=${ACCESS_KEY}",
-        "-e", "SECRET_KEY=${SECRET_KEY}",
-        "-e", "TESTNET=${TESTNET}", // Ensure these env vars are set in your client's environment
+        "-i", 
+        "--rm",
+        "--init",
+        "-e", "ACCESS_KEY={ACCESS_KEY}",
+        "-e", "SECRET_KEY={SECRET_KEY}",
         "dlwjdtn535/mcp-bybit-trader:latest"
-      ],
-      "env": { 
-        // Environment variables for the docker command itself,
-        // passed via -e args above. Ensure ACCESS_KEY, SECRET_KEY, TESTNET are available
-        // in the environment where your MCP client (Claude, Roo Code, etc.) runs.
-        "ACCESS_KEY": "YOUR_BYBIT_API_KEY", // Required - Set here or in client env
-        "SECRET_KEY": "YOUR_BYBIT_SECRET_KEY", // Required - Set here or in client env
-        "TESTNET": "false" // Optional - Set here or in client env
-       },
-      "disabled": false
+      ]
     }
   }
 }

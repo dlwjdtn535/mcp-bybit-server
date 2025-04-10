@@ -1,8 +1,9 @@
 import logging
 from typing import Dict, Optional
 from pybit.unified_trading import HTTP
-from cache import candle_cache
 from config import Config
+import pandas as pd
+from talib import abstract
 
 # Logging configuration
 logging.basicConfig(
@@ -90,8 +91,8 @@ class BybitService:
 
     # @candle_cache.cache('category', 'symbol', 'interval', 'start', 'end', expire=3600)
     def get_talib_kline(self, category: str, symbol: str, interval: str,
-                  start: Optional[int] = None, end: Optional[int] = None,
-                  limit: int = 200) -> Dict:
+                        start: Optional[int] = None, end: Optional[int] = None,
+                        limit: int = 200, indicators: Optional[Dict] = None) -> Dict:
         """
         Get K-line data with TA-Lib indicators
         Args:
@@ -101,27 +102,100 @@ class BybitService:
             start: Start time (millisecond timestamp)
             end: End time (millisecond timestamp)
             limit: Number of records to retrieve
+            indicators: Dictionary of indicators and their parameters.
+                        Example: {
+                            'SMA': [5, 10, 20],
+                            'EMA': [10, 50],
+                            'RSI': [{'timeperiod': 14}],
+                            'MACD': [{'fastperiod': 12, 'slowperiod': 26, 'signalperiod': 9}]
+                        }
         Returns:
             Dict: K-line data with TA-Lib indicators
         """
         try:
-            params = {
-                "category": category,
-                "symbol": symbol,
-                "interval": interval,
-                "limit": limit
-            }
+            # 1. Get K-line data first
+            kline_response = self.get_kline(category, symbol, interval, start, end, limit)
+            if kline_response.get("retCode") != 0 or "result" not in kline_response or "list" not in kline_response["result"]:
+                logger.error(f"Failed to get base K-line data for TA-Lib calculation: {kline_response.get('retMsg')}")
+                return kline_response # Return the original error response
 
-            if start:
-                params["start"] = start
-            if end:
-                params["end"] = end
+            kline_data = kline_response["result"]["list"]
+            if not kline_data:
+                return kline_response # Return empty data if no kline data
 
-            response = self.client.get_kline(**params)
-            return response
+            # 2. Convert to Pandas DataFrame
+            # Adjust column names based on Bybit API v5 response structure
+            # ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'turnover']
+            df = pd.DataFrame(kline_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'turnover'])
+            # Convert timestamp to numeric first, then to datetime
+            df['timestamp'] = pd.to_numeric(df['timestamp'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
+            # Convert other columns to numeric
+            numeric_cols = ['open', 'high', 'low', 'close', 'volume', 'turnover']
+            df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric)
+
+            # Reverse DataFrame as Bybit returns newest first, TA-Lib needs oldest first
+            df = df.iloc[::-1]
+
+            # 3. Calculate indicators if requested
+            if indicators:
+                indicator_results = {}
+                for indicator_name, params_list in indicators.items():
+                    # Use the imported abstract module directly
+                    func = getattr(abstract, indicator_name.upper(), None)
+                    if not func:
+                        logger.warning(f"TA-Lib function {indicator_name.upper()} not found.")
+                        continue
+
+                    indicator_results[indicator_name] = {}
+                    inputs = {
+                        'open': df['open'],
+                        'high': df['high'],
+                        'low': df['low'],
+                        'close': df['close'],
+                        'volume': df['volume']
+                    }
+
+                    # If params_list is a list of integers (e.g., SMA: [5, 10])
+                    if all(isinstance(p, int) for p in params_list):
+                        for period in params_list:
+                            try:
+                                output = func(inputs, timeperiod=period)
+                                # Handle multi-output indicators (like MACD, BBANDS)
+                                if isinstance(output, pd.DataFrame):
+                                     for col in output.columns:
+                                         indicator_results[indicator_name][f'{col}_{period}'] = output[col].iloc[::-1].tolist() # Reverse back
+                                else: # Single output indicator (like SMA, EMA)
+                                     indicator_results[indicator_name][f'{indicator_name}_{period}'] = output.iloc[::-1].tolist() # Reverse back
+                            except Exception as e:
+                                logger.error(f"Error calculating {indicator_name} with period {period}: {e}")
+
+                    # If params_list is a list of dictionaries (e.g., RSI: [{'timeperiod': 14}])
+                    elif all(isinstance(p, dict) for p in params_list):
+                         for params_dict in params_list:
+                            param_key = '_'.join(f"{k}{v}" for k, v in params_dict.items()) # Create unique key like timeperiod14
+                            try:
+                                output = func(inputs, **params_dict)
+                                if isinstance(output, pd.DataFrame):
+                                     for col in output.columns:
+                                         indicator_results[indicator_name][f'{col}_{param_key}'] = output[col].iloc[::-1].tolist() # Reverse back
+                                else:
+                                     indicator_results[indicator_name][f'{indicator_name}_{param_key}'] = output.iloc[::-1].tolist() # Reverse back
+                            except Exception as e:
+                                logger.error(f"Error calculating {indicator_name} with params {params_dict}: {e}")
+
+            # 4. Prepare final result
+            # Combine original kline data with calculated indicators
+            final_result = kline_response # Start with original response
+            final_result['result']['indicators'] = indicator_results if indicators else {}
+            # Keep original kline list as is, indicators are separate
+            # final_result['result']['list'] = df.iloc[::-1].reset_index().to_dict('records') # Convert back to list of dicts if needed
+
+            return final_result
 
         except Exception as e:
-            logger.error(f"Failed to get K-line data: {str(e)}")
+            logger.error(f"Failed to get TA-Lib K-line data: {str(e)}", exc_info=True)
             return {"error": str(e)}
 
     def get_tickers(self, category: str, symbol: str) -> Dict:
@@ -555,8 +629,23 @@ if __name__ == "__main__":
         category='spot',
         symbol='BTCUSDT',
         interval='1',
-        # start=1699996800000,
-        # end=1700083200000,
+        start=1699996800000,
+        end=1700083200000,
         limit=10
+    )
+
+    data = bybit_service.get_talib_kline(
+        category='spot',
+        symbol='BTCUSDT',
+        interval='1',
+        start=1699996800000,
+        end=1700083200000,
+        limit=50,
+        indicators={
+            'SMA': [5, 10],
+            'EMA': [10],
+            'RSI': [{'timeperiod': 14}],
+            'MACD': [{'fastperiod': 12, 'slowperiod': 26, 'signalperiod': 9}]
+        }
     )
     print(orderbook)
