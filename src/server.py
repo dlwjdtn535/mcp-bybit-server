@@ -131,7 +131,7 @@ def main():
             if key in ["MEMBER_ID", "ACCESS_KEY", "SECRET_KEY", "TESTNET"]:
                 logger.debug(f"{key}: {value}")
 
-        mcp.run(transport="stdio")
+        mcp.run(transport="sse")
     except Exception as e:
         logger.error(e)
         print(f"Server execution failed: {str(e)}", file=sys.stderr)
