@@ -30,7 +30,7 @@ mcp = FastMCP()
 
 
 @mcp.tool()
-def get_kline(
+def get_kline_1(
         category: str = Field(description="Category (spot, linear, inverse, etc.)"),
         symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
         interval: str = Field(description="Time interval (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M)"),
@@ -131,7 +131,7 @@ def main():
             if key in ["MEMBER_ID", "ACCESS_KEY", "SECRET_KEY", "TESTNET"]:
                 logger.debug(f"{key}: {value}")
 
-        mcp.run(transport="stdio")
+        mcp.run(transport="sse")
     except Exception as e:
         logger.error(e)
         print(f"Server execution failed: {str(e)}", file=sys.stderr)
