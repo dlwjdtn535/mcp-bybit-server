@@ -15,4 +15,4 @@ startCommand:
         description: Bybit API secret key.
   commandFunction:
     |-
-    config => ({url: 'http://0.0.0.0:8000/sse' })
+    config => ({command: 'mcp-server-demo', args: [] })
