@@ -29,13 +29,6 @@ bybit_service = BybitService()
 mcp = FastMCP(
     title="MCP Bybit Trader",
     description="MCP-based Bybit Trading Bot",
-    version="0.1.0",
-    env={
-        "MEMBER_ID": os.getenv("MEMBER_ID"),
-        "ACCESS_KEY": os.getenv("ACCESS_KEY"),
-        "SECRET_KEY": os.getenv("SECRET_KEY"),
-        "TESTNET": os.getenv("TESTNET")
-    }
 )
 
 
