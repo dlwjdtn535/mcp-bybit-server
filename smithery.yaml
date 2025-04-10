@@ -1,5 +1,5 @@
 startCommand:
-  type: sse
+  type: stdio
   configSchema:
     type: object
     required:
