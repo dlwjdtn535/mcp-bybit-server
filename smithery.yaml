@@ -1,3 +1,6 @@
+# Smithery configuration file: https://smithery.ai/docs/deployments
+build:
+  dockerBuildPath: .
 startCommand:
   type: stdio
   configSchema:
@@ -8,7 +11,7 @@ startCommand:
     properties:
       bybitAccessKey:
         type: string
-        description: Bybit API access key.
+        description: aaaaaaaaaa
       bybitSecretKey:
         type: string
         description: Bybit API secret key.
