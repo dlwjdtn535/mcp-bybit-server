@@ -30,7 +30,7 @@ mcp = FastMCP()
 
 
 @mcp.tool()
-def get_kline_1(
+def get_kline_abcd(
         category: str = Field(description="Category (spot, linear, inverse, etc.)"),
         symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
         interval: str = Field(description="Time interval (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M)"),
