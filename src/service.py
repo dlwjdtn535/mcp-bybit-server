@@ -2,7 +2,6 @@ import logging
 from typing import Dict, Optional
 from pybit.unified_trading import HTTP
 
-from cache import candle_cache
 from config import Config
 # import pandas as pd # Removed as it was only used for talib
 # from talib import abstract # Removed as talib is no longer used
@@ -55,7 +54,6 @@ class BybitService:
             limit=limit
         )
 
-    @candle_cache.cache('category', 'symbol', 'interval', 'start', 'end', expire=3600)
     def get_kline(self, category: str, symbol: str, interval: str,
                   start: Optional[int] = None, end: Optional[int] = None,
                   limit: int = 200) -> Dict:
