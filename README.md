@@ -1,5 +1,5 @@
 # MCP Bybit Trader
-[![smithery badge](https://smithery.ai/badge/@dlwjdtn535/mcp-bybit-trader)](https://smithery.ai/server/@dlwjdtn535/mcp-bybit-trader)
+[![smithery badge](https://smithery.ai/badge/@dlwjdtn535/bybit-trader)](https://smithery.ai/server/@dlwjdtn535/bybit-trader)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg)](https://buymeacoffee.com/dlwjdtn535)
 
 A powerful MCP (Model-Controller-Prompt) based trading bot for Bybit cryptocurrency exchange that provides various trading functionalities and backtesting capabilities.

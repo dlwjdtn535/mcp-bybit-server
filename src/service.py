@@ -88,6 +88,43 @@ class BybitService:
             logger.error(f"Failed to get K-line data: {str(e)}")
             return {"error": str(e)}
 
+
+    @candle_cache.cache('category', 'symbol', 'interval', 'start', 'end', expire=3600)
+    def get_talib_kline(self, category: str, symbol: str, interval: str,
+                  start: Optional[int] = None, end: Optional[int] = None,
+                  limit: int = 200) -> Dict:
+        """
+        Get K-line data with TA-Lib indicators
+        Args:
+            category: Category (spot, linear, inverse, etc.)
+            symbol: Symbol (e.g., BTCUSDT)
+            interval: Time interval (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M)
+            start: Start time (millisecond timestamp)
+            end: End time (millisecond timestamp)
+            limit: Number of records to retrieve
+        Returns:
+            Dict: K-line data with TA-Lib indicators
+        """
+        try:
+            params = {
+                "category": category,
+                "symbol": symbol,
+                "interval": interval,
+                "limit": limit
+            }
+
+            if start:
+                params["start"] = start
+            if end:
+                params["end"] = end
+
+            response = self.client.get_kline(**params)
+            return response
+
+        except Exception as e:
+            logger.error(f"Failed to get K-line data: {str(e)}")
+            return {"error": str(e)}
+
     def get_tickers(self, category: str, symbol: str) -> Dict:
         """
         Get ticker information
