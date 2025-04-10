@@ -9,7 +9,7 @@ startCommand:
     properties:
       bybitAccessKey:
         type: string
-        description: aaaaaaaaaa
+        description: Bybit API access key.
       bybitSecretKey:
         type: string
         description: Bybit API secret key.
