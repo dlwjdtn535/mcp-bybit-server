@@ -11,7 +11,7 @@ class Config:
     MEMBER_ID = os.getenv("MEMBER_ID")
     ACCESS_KEY = os.getenv("ACCESS_KEY")
     SECRET_KEY = os.getenv("SECRET_KEY")
-    TESTNET = os.getenv("TESTNET", "False").lower() == "true"
+    TESTNET = False
 
     @classmethod
     def log_config(cls):

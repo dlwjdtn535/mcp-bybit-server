@@ -23,10 +23,9 @@ class BybitService:
         """
         Initialize BybitService
         """
-        self.testnet = Config.TESTNET
-        logger.info(f"Initializing Bybit Service - Testnet: {self.testnet}, API Key: {Config.ACCESS_KEY}")
+        logger.info(f"Initializing Bybit Service - Testnet: {Config.TESTNET}, API Key: {Config.ACCESS_KEY}")
         self.client = HTTP(
-            testnet=self.testnet,
+            testnet=Config.TESTNET,
             api_key=Config.ACCESS_KEY,
             api_secret=Config.SECRET_KEY
         )
@@ -50,7 +49,7 @@ class BybitService:
             limit=limit
         )
 
-    @candle_cache.cache('category', 'symbol', 'interval', 'start', 'end', expire=3600)
+    # @candle_cache.cache('category', 'symbol', 'interval', 'start', 'end', expire=3600)
     def get_kline(self, category: str, symbol: str, interval: str,
                   start: Optional[int] = None, end: Optional[int] = None,
                   limit: int = 200) -> Dict:
@@ -89,7 +88,7 @@ class BybitService:
             return {"error": str(e)}
 
 
-    @candle_cache.cache('category', 'symbol', 'interval', 'start', 'end', expire=3600)
+    # @candle_cache.cache('category', 'symbol', 'interval', 'start', 'end', expire=3600)
     def get_talib_kline(self, category: str, symbol: str, interval: str,
                   start: Optional[int] = None, end: Optional[int] = None,
                   limit: int = 200) -> Dict:
@@ -540,3 +539,24 @@ class BybitService:
             status=status,
             baseCoin=baseCoin
         )
+
+
+if __name__ == "__main__":
+    # Example usage
+    bybit_service = BybitService()
+    # orderbook = bybit_service.get_orderbook(category='spot', symbol='BTCUSDT')
+    # {
+    #     "category": "spot",
+    #     "symbol": "BTCUSDT",
+    #     "interval": "1",
+    #     "limit": 10
+    # }
+    orderbook = bybit_service.get_kline(
+        category='spot',
+        symbol='BTCUSDT',
+        interval='1',
+        # start=1699996800000,
+        # end=1700083200000,
+        limit=10
+    )
+    print(orderbook)
