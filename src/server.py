@@ -7,9 +7,6 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from service import BybitService
-from config import Config
-
-# from backtest import run_strategy
 
 # Logging configuration
 logging.basicConfig(
@@ -34,27 +31,6 @@ mcp = FastMCP(
         "SECRET_KEY": os.getenv("SECRET_KEY"),
     }
 )
-
-
-
-@mcp.tool()
-def get_config_access_key(
-) -> str:
-    """
-    Get access key from environment variables
-
-    """
-    return Config.ACCESS_KEY
-
-@mcp.tool()
-def get_config_secret_key(
-) -> str:
-    """
-    Get secret key from environment variables
-
-    """
-    return Config.SECRET_KEY
-
 
 @mcp.tool()
 def get_secret_key(
@@ -151,59 +127,6 @@ def get_kline(
     except Exception as e:
         logger.error(f"Failed to get K-line data: {e}", exc_info=True)
         return {"error": str(e)}
-
-
-@mcp.tool()
-def get_talib_kline(
-    category: str = Field(description="Category (spot, linear, inverse, etc.)"),
-    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
-    interval: str = Field(description="Time interval (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M)"),
-    start: Optional[int] = Field(default=None, description="Start time in milliseconds"),
-    end: Optional[int] = Field(default=None, description="End time in milliseconds"),
-    limit: int = Field(default=200, description="Number of records to retrieve"),
-    indicators: Optional[Dict] = Field(default=None, description="List of indicators and their parameters")
-) -> Dict:
-    """
-    Get K-line data and calculate technical indicators using talib
-
-    Args:
-        category (str): Category (spot, linear, inverse, etc.)
-        symbol (str): Symbol (e.g., BTCUSDT)
-        interval (str): Time interval (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M)
-        start (Optional[int]): Start time in milliseconds
-        end (Optional[int]): End time in milliseconds
-        limit (int): Number of records to retrieve
-        indicators (Optional[Dict]): List of indicators and their parameters
-            Example: {
-                'SMA': [5, 10, 20, 50, 100],
-                'EMA': [5, 10, 20, 50, 100],
-                'BBANDS': [{'timeperiod': 20, 'jup': 2, 'jdown': 2, 'matype': 0}],
-                'RSI': [{'timeperiod': 14}, {'timeperiod': 7}],
-                'MACD': [{'fastperiod': 12, 'slowperiod': 26, 'signalperiod': 9}],
-                'STOCH': [{'fastk_period': 5, 'slowk_period': 3, 'slowk_matype': 0, 'slowd_period': 3, 'slowd_matype': 0}],
-                'ATR': [{'timeperiod': 14}],
-                'OBV': [{}]
-            }
-
-    Returns:
-        Dict: K-line data with technical indicators
-
-    Example:
-        get_talib_kline("spot", "BTCUSDT", "1h", 1625097600000, 1625184000000, 100, {'SMA': [5, 10, 20]})
-
-    Reference:
-        https://bybit-exchange.github.io/docs/v5/market/kline
-    """
-    try:
-        result = bybit_service.get_talib_kline(category, symbol, interval, start, end, limit, indicators)
-        if result.get("retCode") != 0:
-            logger.error(f"Failed to get K-line data: {result.get('retMsg')}")
-            return {"error": result.get("retMsg")}
-        return result
-    except Exception as e:
-        logger.error(f"Failed to get K-line data: {e}", exc_info=True)
-        return {"error": str(e)}
-
 
 @mcp.tool()
 def get_tickers(
@@ -704,12 +627,12 @@ def get_instruments_info(
 @mcp.prompt()
 def prompt(message: str) -> str:
     return f"""
-You are an AI trader trading Bitcoin. Bybit API is used to analyze market data, execute orders, and manage positions.
+You are an AI assistant providing access to Bybit API functionalities through available tools.
+Analyze user requests and utilize the appropriate tools to fetch data, manage account information, or execute/manage orders as requested.
 
 Available tools:
 - get_orderbook(category, symbol, limit) - Get orderbook: Retrieve orderbook information for a specific category and symbol. limit parameter can be used to specify the number of orderbook entries to retrieve.
 - get_kline(category, symbol, interval, start, end, limit) - Get K-line data: Retrieve K-line data for a specific category and symbol. interval, start, end, and limit parameters can be used to specify the retrieval range and number of records.
-- get_talib_kline(category, symbol, interval, start, end, limit, indicators) - Get K-line data with technical indicators: Retrieve K-line data and calculate technical indicators using talib. indicators parameter can be used to specify additional indicators and their parameters.
 - get_tickers(category, symbol) - Get ticker information: Retrieve ticker information for a specific category and symbol.
 - get_trades(category, symbol, limit) - Get recent trade history: Retrieve recent trade history for a specific category and symbol. limit parameter can be used to specify the number of trades to retrieve.
 - get_wallet_balance(accountType, coin) - Get wallet balance: Retrieve wallet balance information for a specific account type and coin.
@@ -723,66 +646,64 @@ Available tools:
 - set_margin_mode(category, symbol, tradeMode, buyLeverage, sellLeverage) - Set margin mode: Set margin mode. tradeMode, buyLeverage, and sellLeverage parameters can be used to specify the settings.
 - get_api_key_information() - Get API key information: Retrieve API key information.
 - get_instruments_info(category, symbol, status, baseCoin) - Get exchange information: Retrieve exchange information. status and baseCoin parameters can be used to specify the retrieval conditions.
-- run_backtest(start_time, end_time, strategy_vars) - Run backtest: Execute backtest with specified strategy variables. The backtest will simulate trading based on historical data and the defined strategy rules. Returns detailed results including trade history, performance metrics, and final balance.
+- run_backtest(start_time, end_time, strategy_vars) - Run a backtest: (Optional) Run a backtest using historical data and a defined strategy.
 
-Example strategy variables for backtesting:
-{
-    'indicators': {
-        'rsi': {'period': 14, 'buy_threshold': 30, 'sell_threshold': 70},
-        'mfi': {'period': 14, 'buy_threshold': 20, 'sell_threshold': 80},
-        'bollinger': {'period': 20, 'std_dev': 2.0},
-        'sma': {'periods': [20, 50, 200]},
-        'ema': {'periods': [9, 21, 55]}
-    },
-    'position': {
-        'size': 100,  # % of balance
-        'profit_target': 0.5,  # %
-        'stop_loss': -0.3,  # %
-        'trailing_stop': 0.2  # %
-    },
-    'filters': {
-        'volume_threshold': 1000,
-        'price_threshold': 50000
-    }
-}
+Note: This tool executes a backtest simulation, it does not interact with the live Bybit API for trading.
+Invokes the `run_strategy` function from `backtest.py`.
+
+Args:
+    start_time: Start time for the backtest period (millisecond timestamp).
+    end_time: End time for the backtest period (millisecond timestamp).
+    strategy_vars: A dictionary containing the strategy definition.
+                   Refer to the `run_strategy` function in `backtest.py` for the expected structure.
+                   This includes initial balance, indicator settings, buy/sell conditions, and position settings.
+
+Returns:
+    Dict: The results of the backtest, including performance metrics and trade history.
+             Returns an error dictionary if the backtest fails.
 
 User message: {message}
 """
 
 
-# @mcp.tool()
-# def run_backtest(
-#     start_time: int = Field(description="Start time for backtest (millisecond timestamp)"),
-#     end_time: int = Field(description="End time for backtest (millisecond timestamp)"),
-#     strategy_vars: Dict[str, Any] = Field(description="Strategy variables dictionary")
-# ) -> Dict:
-#     """
-#     Run backtest
-#
-#     Args:
-#         start_time: Start time for backtest (millisecond timestamp)
-#         end_time: End time for backtest (millisecond timestamp)
-#         strategy_vars: Strategy variables dictionary
-#
-#     Returns:
-#         Dict: Backtest results
-#     """
-#     try:
-#         logger.info(f"Starting backtest: {start_time} ~ {end_time}")
-#         logger.info(f"Strategy variables: {strategy_vars}")
-#
-#         result = run_strategy(start_time, end_time, strategy_vars)
-#
-#         if 'error' in result:
-#             logger.error(f"Backtest execution failed: {result['error']}")
-#             return result
-#
-#         logger.info("Backtest completed")
-#         return result
-#
-#     except Exception as e:
-#         logger.error(f"Error during backtest execution: {str(e)}")
-#         return {"error": str(e)}
+@mcp.tool()
+def run_backtest(
+    start_time: int = Field(description="Start time for backtest (millisecond timestamp)"),
+    end_time: int = Field(description="End time for backtest (millisecond timestamp)"),
+    strategy_vars: Dict[str, Any] = Field(description="Strategy definition dictionary for backtesting (see backtest.py)")
+) -> Dict:
+    """
+    (Optional) Run a backtest using historical data and a defined strategy.
+
+    Note: This tool executes a backtest simulation, it does not interact with the live Bybit API for trading.
+    Invokes the `run_strategy` function from `backtest.py`.
+
+    Args:
+        start_time: Start time for the backtest period (millisecond timestamp).
+        end_time: End time for the backtest period (millisecond timestamp).
+        strategy_vars: A dictionary containing the strategy definition.
+                       Refer to the `run_strategy` function in `backtest.py` for the expected structure.
+                       This includes initial balance, indicator settings, buy/sell conditions, and position settings.
+
+    Returns:
+        Dict: The results of the backtest, including performance metrics and trade history.
+                 Returns an error dictionary if the backtest fails.
+    """
+    # Ensure backtest module is importable
+    try:
+        from backtest import run_strategy
+    except ImportError:
+        logger.error("Backtesting module not found or import error.")
+        return {"error": "Backtesting functionality is not available."}
+
+    logger.info(f"Received backtest request: Start={start_time}, End={end_time}")
+    logger.debug(f"Strategy Vars: {strategy_vars}")
+    try:
+        result = run_strategy(start_time, end_time, strategy_vars)
+        return result
+    except Exception as e:
+        logger.error(f"Failed to run backtest: {e}", exc_info=True)
+        return {"error": str(e)}
 
 
 def main():

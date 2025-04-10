@@ -27,4 +27,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/mcp-bybit-trader:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/mcp-bybit-server:latest

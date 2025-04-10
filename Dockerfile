@@ -4,20 +4,6 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS uv
 # Install the project into `/app`
 WORKDIR /app
 
-# Install system dependencies and TA-Lib
-RUN apt-get update && \
-    apt-get install -y build-essential python3-dev wget && \
-    wget https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-src.tar.gz && \
-    tar -xzf ta-lib-0.6.4-src.tar.gz && \
-    cd ta-lib-0.6.4/ && \
-    ./configure --prefix=/usr && \
-    make && \
-    make install && \
-    cd .. && \
-    rm -rf ta-lib-0.6.4 ta-lib-0.6.4-src.tar.gz && \
-    rm -rf /var/lib/apt/lists/* && \
-    ldconfig
-
 # Enable bytecode compilation
 ENV UV_COMPILE_BYTECODE=1
 
@@ -42,20 +28,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM python:3.12-slim-bookworm
 
-# Install system dependencies and TA-Lib in the second stage
-RUN apt-get update && \
-    apt-get install -y git build-essential python3-dev wget && \
-    wget https://github.com/ta-lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-src.tar.gz && \
-    tar -xzf ta-lib-0.6.4-src.tar.gz && \
-    cd ta-lib-0.6.4/ && \
-    ./configure --prefix=/usr && \
-    make && \
-    make install && \
-    cd .. && \
-    rm -rf ta-lib-0.6.4 ta-lib-0.6.4-src.tar.gz && \
-    rm -rf /var/lib/apt/lists/* && \
-    ldconfig
-
 WORKDIR /app
 
 # Create necessary directories in the second stage
@@ -68,4 +40,4 @@ COPY --from=uv --chown=app:app /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
 # when running the container, add --db-path and a bind mount to the host's db file
-ENTRYPOINT ["mcp-bybit-trader"]
+ENTRYPOINT ["mcp-bybit-server"]
