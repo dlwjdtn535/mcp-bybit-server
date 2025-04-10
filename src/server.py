@@ -646,7 +646,6 @@ Available tools:
 - set_margin_mode(category, symbol, tradeMode, buyLeverage, sellLeverage) - Set margin mode: Set margin mode. tradeMode, buyLeverage, and sellLeverage parameters can be used to specify the settings.
 - get_api_key_information() - Get API key information: Retrieve API key information.
 - get_instruments_info(category, symbol, status, baseCoin) - Get exchange information: Retrieve exchange information. status and baseCoin parameters can be used to specify the retrieval conditions.
-- run_backtest(start_time, end_time, strategy_vars) - Run a backtest: (Optional) Run a backtest using historical data and a defined strategy.
 
 Note: This tool executes a backtest simulation, it does not interact with the live Bybit API for trading.
 Invokes the `run_strategy` function from `backtest.py`.
@@ -664,46 +663,6 @@ Returns:
 
 User message: {message}
 """
-
-
-@mcp.tool()
-def run_backtest(
-    start_time: int = Field(description="Start time for backtest (millisecond timestamp)"),
-    end_time: int = Field(description="End time for backtest (millisecond timestamp)"),
-    strategy_vars: Dict[str, Any] = Field(description="Strategy definition dictionary for backtesting (see backtest.py)")
-) -> Dict:
-    """
-    (Optional) Run a backtest using historical data and a defined strategy.
-
-    Note: This tool executes a backtest simulation, it does not interact with the live Bybit API for trading.
-    Invokes the `run_strategy` function from `backtest.py`.
-
-    Args:
-        start_time: Start time for the backtest period (millisecond timestamp).
-        end_time: End time for the backtest period (millisecond timestamp).
-        strategy_vars: A dictionary containing the strategy definition.
-                       Refer to the `run_strategy` function in `backtest.py` for the expected structure.
-                       This includes initial balance, indicator settings, buy/sell conditions, and position settings.
-
-    Returns:
-        Dict: The results of the backtest, including performance metrics and trade history.
-                 Returns an error dictionary if the backtest fails.
-    """
-    # Ensure backtest module is importable
-    try:
-        from backtest import run_strategy
-    except ImportError:
-        logger.error("Backtesting module not found or import error.")
-        return {"error": "Backtesting functionality is not available."}
-
-    logger.info(f"Received backtest request: Start={start_time}, End={end_time}")
-    logger.debug(f"Strategy Vars: {strategy_vars}")
-    try:
-        result = run_strategy(start_time, end_time, strategy_vars)
-        return result
-    except Exception as e:
-        logger.error(f"Failed to run backtest: {e}", exc_info=True)
-        return {"error": str(e)}
 
 
 def main():
