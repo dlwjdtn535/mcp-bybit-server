@@ -1,5 +1,5 @@
 # MCP Bybit API Interface
-[![smithery badge](https://smithery.ai/badge/@dlwjdtn535/bybit-server)](https://smithery.ai/server/@dlwjdtn535/bybit-server)
+[![smithery badge](https://smithery.ai/badge/@dlwjdtn535/mcp-bybit-server)](https://smithery.ai/server/@dlwjdtn535/mcp-bybit-server)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg)](https://buymeacoffee.com/dlwjdtn535)
 
 Bybit MCP (Model Context Protocol) Server. Provides a convenient interface to interact with the Bybit API using MCP tools. Allows fetching market data, managing account information, and placing/canceling orders via API calls wrapped as tools.
@@ -8,10 +8,10 @@ Bybit MCP (Model Context Protocol) Server. Provides a convenient interface to in
 
 ### Installing via Smithery
 
-To install this Bybit API Interface server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@dlwjdtn535/bybit-server):
+To install this Bybit API Interface server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@dlwjdtn535/mcp-bybit-server):
 
 ```bash
-npx -y @smithery/cli install @dlwjdtn535/bybit-server --client claude
+npx -y @smithery/cli install @dlwjdtn535/mcp-bybit-server --client claude
 ```
 
 ### Using with Claude, Roo Code, Cline, etc.
