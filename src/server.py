@@ -1,12 +1,13 @@
 import logging
 import os
 import sys
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from service import BybitService
+from backtest import run_strategy
 
 # Logging configuration
 logging.basicConfig(
@@ -21,7 +22,6 @@ for key, value in os.environ.items():
     if key in ["MEMBER_ID", "ACCESS_KEY", "SECRET_KEY", "TESTNET"]:
         logger.debug(f"{key}: {value}")
 
-
 # Create BybitService instance
 bybit_service = BybitService()
 
@@ -31,13 +31,12 @@ mcp = FastMCP(
     description="MCP-based Bybit Trading Bot",
 )
 
-
 # Register MCP tools
 @mcp.tool()
 def get_orderbook(
-        category: str = Field(description="Category (spot, linear, inverse, etc.)"),
-        symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
-        limit: int = Field(default=50, description="Number of orderbook entries to retrieve")
+    category: str = Field(description="Category (spot, linear, inverse, etc.)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    limit: int = Field(default=50, description="Number of orderbook entries to retrieve")
 ) -> Dict:
     """
     Get orderbook data
@@ -73,12 +72,12 @@ def get_orderbook(
 
 @mcp.tool()
 def get_kline(
-        category: str = Field(description="Category (spot, linear, inverse, etc.)"),
-        symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
-        interval: str = Field(description="Time interval (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M)"),
-        start: Optional[int] = Field(default=None, description="Start time in milliseconds"),
-        end: Optional[int] = Field(default=None, description="End time in milliseconds"),
-        limit: int = Field(default=200, description="Number of records to retrieve")
+    category: str = Field(description="Category (spot, linear, inverse, etc.)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    interval: str = Field(description="Time interval (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M)"),
+    start: Optional[int] = Field(default=None, description="Start time in milliseconds"),
+    end: Optional[int] = Field(default=None, description="End time in milliseconds"),
+    limit: int = Field(default=200, description="Number of records to retrieve")
 ) -> Dict:
     """
     Get K-line (candlestick) data
@@ -112,9 +111,61 @@ def get_kline(
 
 
 @mcp.tool()
+def get_talib_kline(
+    category: str = Field(description="Category (spot, linear, inverse, etc.)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    interval: str = Field(description="Time interval (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M)"),
+    start: Optional[int] = Field(default=None, description="Start time in milliseconds"),
+    end: Optional[int] = Field(default=None, description="End time in milliseconds"),
+    limit: int = Field(default=200, description="Number of records to retrieve"),
+    indicators: Optional[Dict] = Field(default=None, description="List of indicators and their parameters")
+) -> Dict:
+    """
+    Get K-line data and calculate technical indicators using talib
+
+    Args:
+        category (str): Category (spot, linear, inverse, etc.)
+        symbol (str): Symbol (e.g., BTCUSDT)
+        interval (str): Time interval (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, W, M)
+        start (Optional[int]): Start time in milliseconds
+        end (Optional[int]): End time in milliseconds
+        limit (int): Number of records to retrieve
+        indicators (Optional[Dict]): List of indicators and their parameters
+            Example: {
+                'SMA': [5, 10, 20, 50, 100],
+                'EMA': [5, 10, 20, 50, 100],
+                'BBANDS': [{'timeperiod': 20, 'jup': 2, 'jdown': 2, 'matype': 0}],
+                'RSI': [{'timeperiod': 14}, {'timeperiod': 7}],
+                'MACD': [{'fastperiod': 12, 'slowperiod': 26, 'signalperiod': 9}],
+                'STOCH': [{'fastk_period': 5, 'slowk_period': 3, 'slowk_matype': 0, 'slowd_period': 3, 'slowd_matype': 0}],
+                'ATR': [{'timeperiod': 14}],
+                'OBV': [{}]
+            }
+
+    Returns:
+        Dict: K-line data with technical indicators
+
+    Example:
+        get_talib_kline("spot", "BTCUSDT", "1h", 1625097600000, 1625184000000, 100, {'SMA': [5, 10, 20]})
+
+    Reference:
+        https://bybit-exchange.github.io/docs/v5/market/kline
+    """
+    try:
+        result = bybit_service.get_talib_kline(category, symbol, interval, start, end, limit, indicators)
+        if result.get("retCode") != 0:
+            logger.error(f"Failed to get K-line data: {result.get('retMsg')}")
+            return {"error": result.get("retMsg")}
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get K-line data: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+@mcp.tool()
 def get_tickers(
-        category: str = Field(description="Category (spot, linear, inverse, etc.)"),
-        symbol: str = Field(description="Symbol (e.g., BTCUSDT)")
+    category: str = Field(description="Category (spot, linear, inverse, etc.)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)")
 ) -> Dict:
     """
     Get ticker information
@@ -145,8 +196,8 @@ def get_tickers(
 
 @mcp.tool()
 def get_wallet_balance(
-        accountType: str = Field(description="Account type (UNIFIED, CONTRACT, SPOT)"),
-        coin: Optional[str] = Field(default=None, description="Coin symbol")
+    accountType: str = Field(description="Account type (UNIFIED, CONTRACT, SPOT)"),
+    coin: Optional[str] = Field(default=None, description="Coin symbol")
 ) -> Dict:
     """
     Get wallet balance
@@ -177,8 +228,8 @@ def get_wallet_balance(
 
 @mcp.tool()
 def get_positions(
-        category: str = Field(description="Category (spot, linear, inverse, etc.)"),
-        symbol: Optional[str] = Field(default=None, description="Symbol (e.g., BTCUSDT)")
+    category: str = Field(description="Category (spot, linear, inverse, etc.)"),
+    symbol: Optional[str] = Field(default=None, description="Symbol (e.g., BTCUSDT)")
 ) -> Dict:
     """
     Get position information
@@ -209,28 +260,28 @@ def get_positions(
 
 @mcp.tool()
 def place_order(
-        category: str = Field(description="Category (spot, linear, inverse, etc.)"),
-        symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
-        side: str = Field(description="Order direction (Buy, Sell)"),
-        orderType: str = Field(description="Order type (Market, Limit)"),
-        qty: str = Field(description="Order quantity"),
-        price: Optional[str] = Field(default=None, description="Order price (for limit orders)"),
-        positionIdx: Optional[str] = Field(default=None, description="Position index (1: Long, 2: Short)"),
-        timeInForce: Optional[str] = Field(default=None, description="Time in force (GTC, IOC, FOK, PostOnly)"),
-        orderLinkId: Optional[str] = Field(default=None, description="Order link ID"),
-        isLeverage: Optional[int] = Field(default=None, description="Use leverage (0: No, 1: Yes)"),
-        orderFilter: Optional[str] = Field(default=None, description="Order filter (Order, tpslOrder, StopOrder)"),
-        triggerPrice: Optional[str] = Field(default=None, description="Trigger price"),
-        triggerBy: Optional[str] = Field(default=None, description="Trigger basis"),
-        orderIv: Optional[str] = Field(default=None, description="Order volatility"),
-        takeProfit: Optional[str] = Field(default=None, description="Take profit price"),
-        stopLoss: Optional[str] = Field(default=None, description="Stop loss price"),
-        tpTriggerBy: Optional[str] = Field(default=None, description="Take profit trigger basis"),
-        slTriggerBy: Optional[str] = Field(default=None, description="Stop loss trigger basis"),
-        tpLimitPrice: Optional[str] = Field(default=None, description="Take profit limit price"),
-        slLimitPrice: Optional[str] = Field(default=None, description="Stop loss limit price"),
-        tpOrderType: Optional[str] = Field(default=None, description="Take profit order type (Market, Limit)"),
-        slOrderType: Optional[str] = Field(default=None, description="Stop loss order type (Market, Limit)")
+    category: str = Field(description="Category (spot, linear, inverse, etc.)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    side: str = Field(description="Order direction (Buy, Sell)"),
+    orderType: str = Field(description="Order type (Market, Limit)"),
+    qty: str = Field(description="Order quantity"),
+    price: Optional[str] = Field(default=None, description="Order price (for limit orders)"),
+    positionIdx: Optional[str] = Field(default=None, description="Position index (1: Long, 2: Short)"),
+    timeInForce: Optional[str] = Field(default=None, description="Time in force (GTC, IOC, FOK, PostOnly)"),
+    orderLinkId: Optional[str] = Field(default=None, description="Order link ID"),
+    isLeverage: Optional[int] = Field(default=None, description="Use leverage (0: No, 1: Yes)"),
+    orderFilter: Optional[str] = Field(default=None, description="Order filter (Order, tpslOrder, StopOrder)"),
+    triggerPrice: Optional[str] = Field(default=None, description="Trigger price"),
+    triggerBy: Optional[str] = Field(default=None, description="Trigger basis"),
+    orderIv: Optional[str] = Field(default=None, description="Order volatility"),
+    takeProfit: Optional[str] = Field(default=None, description="Take profit price"),
+    stopLoss: Optional[str] = Field(default=None, description="Stop loss price"),
+    tpTriggerBy: Optional[str] = Field(default=None, description="Take profit trigger basis"),
+    slTriggerBy: Optional[str] = Field(default=None, description="Stop loss trigger basis"),
+    tpLimitPrice: Optional[str] = Field(default=None, description="Take profit limit price"),
+    slLimitPrice: Optional[str] = Field(default=None, description="Stop loss limit price"),
+    tpOrderType: Optional[str] = Field(default=None, description="Take profit order type (Market, Limit)"),
+    slOrderType: Optional[str] = Field(default=None, description="Stop loss order type (Market, Limit)")
 ) -> Dict:
     """
     Execute order
@@ -337,11 +388,11 @@ def place_order(
 
 @mcp.tool()
 def cancel_order(
-        category: str = Field(description="Category (spot, linear, inverse, etc.)"),
-        symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
-        orderId: Optional[str] = Field(default=None, description="Order ID"),
-        orderLinkId: Optional[str] = Field(default=None, description="Order link ID"),
-        orderFilter: Optional[str] = Field(default=None, description="Order filter")
+    category: str = Field(description="Category (spot, linear, inverse, etc.)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    orderId: Optional[str] = Field(default=None, description="Order ID"),
+    orderLinkId: Optional[str] = Field(default=None, description="Order link ID"),
+    orderFilter: Optional[str] = Field(default=None, description="Order filter")
 ) -> Dict:
     """
     Cancel order
@@ -375,15 +426,15 @@ def cancel_order(
 
 @mcp.tool()
 def get_order_history(
-        category: str = Field(description="Category (spot, linear, inverse, etc.)"),
-        symbol: Optional[str] = Field(default=None, description="Symbol (e.g., BTCUSDT)"),
-        orderId: Optional[str] = Field(default=None, description="Order ID"),
-        orderLinkId: Optional[str] = Field(default=None, description="Order link ID"),
-        orderFilter: Optional[str] = Field(default=None, description="Order filter"),
-        orderStatus: Optional[str] = Field(default=None, description="Order status"),
-        startTime: Optional[int] = Field(default=None, description="Start time in milliseconds"),
-        endTime: Optional[int] = Field(default=None, description="End time in milliseconds"),
-        limit: int = Field(default=50, description="Number of orders to retrieve")
+    category: str = Field(description="Category (spot, linear, inverse, etc.)"),
+    symbol: Optional[str] = Field(default=None, description="Symbol (e.g., BTCUSDT)"),
+    orderId: Optional[str] = Field(default=None, description="Order ID"),
+    orderLinkId: Optional[str] = Field(default=None, description="Order link ID"),
+    orderFilter: Optional[str] = Field(default=None, description="Order filter"),
+    orderStatus: Optional[str] = Field(default=None, description="Order status"),
+    startTime: Optional[int] = Field(default=None, description="Start time in milliseconds"),
+    endTime: Optional[int] = Field(default=None, description="End time in milliseconds"),
+    limit: int = Field(default=50, description="Number of orders to retrieve")
 ) -> Dict:
     """
     Get order history
@@ -424,12 +475,12 @@ def get_order_history(
 
 @mcp.tool()
 def get_open_orders(
-        category: str = Field(description="Category (spot, linear, inverse, etc.)"),
-        symbol: Optional[str] = Field(default=None, description="Symbol (e.g., BTCUSDT)"),
-        orderId: Optional[str] = Field(default=None, description="Order ID"),
-        orderLinkId: Optional[str] = Field(default=None, description="Order link ID"),
-        orderFilter: Optional[str] = Field(default=None, description="Order filter"),
-        limit: int = Field(default=50, description="Number of orders to retrieve")
+    category: str = Field(description="Category (spot, linear, inverse, etc.)"),
+    symbol: Optional[str] = Field(default=None, description="Symbol (e.g., BTCUSDT)"),
+    orderId: Optional[str] = Field(default=None, description="Order ID"),
+    orderLinkId: Optional[str] = Field(default=None, description="Order link ID"),
+    orderFilter: Optional[str] = Field(default=None, description="Order filter"),
+    limit: int = Field(default=50, description="Number of orders to retrieve")
 ) -> Dict:
     """
     Get open orders
@@ -466,12 +517,12 @@ def get_open_orders(
 
 @mcp.tool()
 def set_trading_stop(
-        category: str = Field(description="Category (spot, linear, inverse, etc.)"),
-        symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
-        takeProfit: Optional[str] = Field(default=None, description="Take profit price"),
-        stopLoss: Optional[str] = Field(default=None, description="Stop loss price"),
-        trailingStop: Optional[str] = Field(default=None, description="Trailing stop"),
-        positionIdx: Optional[int] = Field(default=None, description="Position index")
+    category: str = Field(description="Category (spot, linear, inverse, etc.)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    takeProfit: Optional[str] = Field(default=None, description="Take profit price"),
+    stopLoss: Optional[str] = Field(default=None, description="Stop loss price"),
+    trailingStop: Optional[str] = Field(default=None, description="Trailing stop"),
+    positionIdx: Optional[int] = Field(default=None, description="Position index")
 ) -> Dict:
     """
     Set trading stop
@@ -508,11 +559,11 @@ def set_trading_stop(
 
 @mcp.tool()
 def set_margin_mode(
-        category: str = Field(description="Category (spot, linear, inverse, etc.)"),
-        symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
-        tradeMode: int = Field(description="Trading mode (0: Isolated, 1: Cross)"),
-        buyLeverage: str = Field(description="Buying leverage"),
-        sellLeverage: str = Field(description="Selling leverage")
+    category: str = Field(description="Category (spot, linear, inverse, etc.)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    tradeMode: int = Field(description="Trading mode (0: Isolated, 1: Cross)"),
+    buyLeverage: str = Field(description="Buying leverage"),
+    sellLeverage: str = Field(description="Selling leverage")
 ) -> Dict:
     """
     Set margin mode
@@ -573,10 +624,10 @@ def get_api_key_information() -> Dict:
 
 @mcp.tool()
 def get_instruments_info(
-        category: str = Field(description="Category (spot, linear, inverse, etc.)"),
-        symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
-        status: Optional[str] = Field(default=None, description="Status"),
-        baseCoin: Optional[str] = Field(default=None, description="Base coin")
+    category: str = Field(description="Category (spot, linear, inverse, etc.)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    status: Optional[str] = Field(default=None, description="Status"),
+    baseCoin: Optional[str] = Field(default=None, description="Base coin")
 ) -> Dict:
     """
     Get exchange information
@@ -629,32 +680,66 @@ Available tools:
 - set_margin_mode(category, symbol, tradeMode, buyLeverage, sellLeverage) - Set margin mode: Set margin mode. tradeMode, buyLeverage, and sellLeverage parameters can be used to specify the settings.
 - get_api_key_information() - Get API key information: Retrieve API key information.
 - get_instruments_info(category, symbol, status, baseCoin) - Get exchange information: Retrieve exchange information. status and baseCoin parameters can be used to specify the retrieval conditions.
-- initialize_backtest(start_time, end_time, initial_balance, strategy_vars) - Initialize backtest: Set up backtest configuration with initial balance and strategy variables. Strategy variables can include various technical indicators (RSI, MFI, Bollinger Bands, SMA, EMA), position settings (size, profit target, stop loss, trailing stop), and filters (volume threshold, price threshold).
 - run_backtest(start_time, end_time, strategy_vars) - Run backtest: Execute backtest with specified strategy variables. The backtest will simulate trading based on historical data and the defined strategy rules. Returns detailed results including trade history, performance metrics, and final balance.
 
 Example strategy variables for backtesting:
 {
     'indicators': {
-    'rsi': {'period': 14, 'buy_threshold': 30, 'sell_threshold': 70},
+        'rsi': {'period': 14, 'buy_threshold': 30, 'sell_threshold': 70},
         'mfi': {'period': 14, 'buy_threshold': 20, 'sell_threshold': 80},
         'bollinger': {'period': 20, 'std_dev': 2.0},
         'sma': {'periods': [20, 50, 200]},
         'ema': {'periods': [9, 21, 55]}
     },
     'position': {
-    'size': 100,  # % of balance
+        'size': 100,  # % of balance
         'profit_target': 0.5,  # %
         'stop_loss': -0.3,  # %
         'trailing_stop': 0.2  # %
     },
     'filters': {
-    'volume_threshold': 1000,
+        'volume_threshold': 1000,
         'price_threshold': 50000
     }
 }
 
 User message: {message}
 """
+
+
+@mcp.tool()
+def run_backtest(
+    start_time: int = Field(description="Start time for backtest (millisecond timestamp)"),
+    end_time: int = Field(description="End time for backtest (millisecond timestamp)"),
+    strategy_vars: Dict[str, Any] = Field(description="Strategy variables dictionary")
+) -> Dict:
+    """
+    Run backtest
+
+    Args:
+        start_time: Start time for backtest (millisecond timestamp)
+        end_time: End time for backtest (millisecond timestamp)
+        strategy_vars: Strategy variables dictionary
+
+    Returns:
+        Dict: Backtest results
+    """
+    try:
+        logger.info(f"Starting backtest: {start_time} ~ {end_time}")
+        logger.info(f"Strategy variables: {strategy_vars}")
+
+        result = run_strategy(start_time, end_time, strategy_vars)
+
+        if 'error' in result:
+            logger.error(f"Backtest execution failed: {result['error']}")
+            return result
+
+        logger.info("Backtest completed")
+        return result
+
+    except Exception as e:
+        logger.error(f"Error during backtest execution: {str(e)}")
+        return {"error": str(e)}
 
 
 def main():
