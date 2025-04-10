@@ -86,9 +86,6 @@ This MCP server provides the following tools for interacting with the Bybit API:
 13. **`get_instruments_info`**: Fetches details about trading instruments (symbols).
     *   Inputs: `category`, `symbol`, `status` (optional), `baseCoin` (optional)
     *   Returns: Instrument details.
-14. **`run_backtest`**: Runs a backtest using historical data and a defined strategy.
-    *   Inputs: `start_time`, `end_time`, `strategy_vars` (dictionary defining the strategy)
-    *   Returns: Backtest results including performance metrics.
 
 _(Refer to the function docstrings in the code for detailed parameter descriptions and examples.)_
 
@@ -117,13 +114,6 @@ To use this Bybit API interface, you need to create an API key from Bybit. Follo
         *   Read (Required)
         *   Trade (Required for order execution)
         *   Wallet (Required for balance checking)
-
-## Security Warning
-
-⚠️ NEVER commit your API keys to version control.
-⚠️ ALWAYS use IP restrictions for your API keys if possible.
-⚠️ Monitor your API key usage regularly.
-⚠️ Revoke any compromised API keys immediately.
 
 ## Sponsorship & Donations
 
