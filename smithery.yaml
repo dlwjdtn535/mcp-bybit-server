@@ -9,10 +9,10 @@ startCommand:
     properties:
       bybitAccessKey:
         type: string
-        description: Bybit API access key.
+        description: Bybit API access key 1.
       bybitSecretKey:
         type: string
-        description: Bybit API secret key.
+        description: Bybit API secret key 2.
   commandFunction:
     |-
     config => ({command: 'mcp-server-demo', args: [], env: { ACCESS_KEY: config.bybitAccessKey, SECRET_KEY: config.bybitSecretKey }})
