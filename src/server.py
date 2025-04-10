@@ -7,11 +7,11 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from service import BybitService
-from backtest import run_strategy
+# from backtest import run_strategy
 
 # Logging configuration
 logging.basicConfig(
-    level=logging.DEBUG,  # Change logging level to DEBUG
+    level=logging.INFO,  # Change logging level to DEBUG
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -704,39 +704,39 @@ User message: {message}
 """
 
 
-@mcp.tool()
-def run_backtest(
-    start_time: int = Field(description="Start time for backtest (millisecond timestamp)"),
-    end_time: int = Field(description="End time for backtest (millisecond timestamp)"),
-    strategy_vars: Dict[str, Any] = Field(description="Strategy variables dictionary")
-) -> Dict:
-    """
-    Run backtest
-
-    Args:
-        start_time: Start time for backtest (millisecond timestamp)
-        end_time: End time for backtest (millisecond timestamp)
-        strategy_vars: Strategy variables dictionary
-
-    Returns:
-        Dict: Backtest results
-    """
-    try:
-        logger.info(f"Starting backtest: {start_time} ~ {end_time}")
-        logger.info(f"Strategy variables: {strategy_vars}")
-
-        result = run_strategy(start_time, end_time, strategy_vars)
-
-        if 'error' in result:
-            logger.error(f"Backtest execution failed: {result['error']}")
-            return result
-
-        logger.info("Backtest completed")
-        return result
-
-    except Exception as e:
-        logger.error(f"Error during backtest execution: {str(e)}")
-        return {"error": str(e)}
+# @mcp.tool()
+# def run_backtest(
+#     start_time: int = Field(description="Start time for backtest (millisecond timestamp)"),
+#     end_time: int = Field(description="End time for backtest (millisecond timestamp)"),
+#     strategy_vars: Dict[str, Any] = Field(description="Strategy variables dictionary")
+# ) -> Dict:
+#     """
+#     Run backtest
+#
+#     Args:
+#         start_time: Start time for backtest (millisecond timestamp)
+#         end_time: End time for backtest (millisecond timestamp)
+#         strategy_vars: Strategy variables dictionary
+#
+#     Returns:
+#         Dict: Backtest results
+#     """
+#     try:
+#         logger.info(f"Starting backtest: {start_time} ~ {end_time}")
+#         logger.info(f"Strategy variables: {strategy_vars}")
+#
+#         result = run_strategy(start_time, end_time, strategy_vars)
+#
+#         if 'error' in result:
+#             logger.error(f"Backtest execution failed: {result['error']}")
+#             return result
+#
+#         logger.info("Backtest completed")
+#         return result
+#
+#     except Exception as e:
+#         logger.error(f"Error during backtest execution: {str(e)}")
+#         return {"error": str(e)}
 
 
 def main():
