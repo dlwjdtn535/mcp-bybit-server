@@ -28,6 +28,11 @@ bybit_service = BybitService()
 # Register MCP tools
 mcp = FastMCP()
 
+@mcp.tool()
+def get_sample(
+) -> str:
+    return "Hello, world!"
+
 # Register MCP tools
 @mcp.tool()
 def get_orderbook(
