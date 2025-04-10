@@ -1,5 +1,5 @@
 startCommand:
-  type: docker
+  type: sse
   configSchema:
     type: object
     required:
