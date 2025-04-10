@@ -7,6 +7,8 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from service import BybitService
+from config import Config
+
 # from backtest import run_strategy
 
 # Logging configuration
@@ -32,6 +34,27 @@ mcp = FastMCP(
         "SECRET_KEY": os.getenv("SECRET_KEY"),
     }
 )
+
+
+
+@mcp.tool()
+def get_config_access_key(
+) -> str:
+    """
+    Get access key from environment variables
+
+    """
+    return Config.ACCESS_KEY
+
+@mcp.tool()
+def get_config_secret_key(
+) -> str:
+    """
+    Get secret key from environment variables
+
+    """
+    return Config.SECRET_KEY
+
 
 @mcp.tool()
 def get_secret_key(
