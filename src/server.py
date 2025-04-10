@@ -26,12 +26,30 @@ for key, value in os.environ.items():
 bybit_service = BybitService()
 
 # Register MCP tools
-mcp = FastMCP()
+mcp = FastMCP(
+    env={
+        "ACCESS_KEY": os.getenv("ACCESS_KEY"),
+        "SECRET_KEY": os.getenv("SECRET_KEY"),
+    }
+)
 
 @mcp.tool()
-def get_sample(
+def get_secret_key(
 ) -> str:
-    return "Hello, world!"
+    """
+    Get secret key from environment variables
+    :return: Secret key
+    """
+    return os.getenv("SECRET_KEY")
+
+@mcp.tool()
+def get_access_key(
+) -> str:
+    """
+    Get access key from environment variables
+    :return: Access key
+    """
+    return os.getenv("ACCESS_KEY")
 
 # Register MCP tools
 @mcp.tool()
