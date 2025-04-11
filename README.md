@@ -29,7 +29,11 @@ Add the following configuration to your MCP settings file (e.g., `mcp_settings.j
           "--directory",
           "C:\\Users\\YOUR_USERNAME\\AppData\\Local\\Programs\\mcp-server-demo\\src",
           "server.py"
-        ]
+        ],
+        "env": {
+            "ACCESS_KEY": "{ACCESS_KEY}",
+            "SECRET_KEY": "{ACCESS_KEY}"
+          }
       }
       // ... other servers might be here ...
     }
@@ -50,7 +54,11 @@ Add the following configuration to your MCP settings file (e.g., `mcp_settings.j
         "--directory",
         "/usr/local/bin/mcp-server-demo/src",
         "server.py"
-      ]
+      ],
+      "env": {
+        "ACCESS_KEY": "{ACCESS_KEY}",
+        "SECRET_KEY": "{ACCESS_KEY}"
+      }
     }
     // ... other servers might be here ...
   }
@@ -70,7 +78,11 @@ Add the following configuration to your MCP settings file (e.g., `mcp_settings.j
         "--directory",
         "/home/YOUR_USERNAME/bin/mcp-server-demo/src",
         "server.py"
-      ]
+      ],
+      "env": {
+        "ACCESS_KEY": "{ACCESS_KEY}",
+        "SECRET_KEY": "{ACCESS_KEY}"
+      }
     }
     // ... other servers might be here ...
   }
