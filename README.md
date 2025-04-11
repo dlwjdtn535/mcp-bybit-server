@@ -17,6 +17,66 @@ npx -y @smithery/cli install @dlwjdtn535/mcp-bybit-server --client claude
 ### Using with Claude, Roo Code, Cline, etc.
 
 Add the following configuration to your MCP settings file (e.g., `mcp_settings.json`):
+**Using uv With Windows:**
+
+  ```json
+  {
+    "mcpServers": {
+      "mcp-server-demo": {
+        "command": "uv",
+        "args": [
+          "run",
+          "--directory",
+          "C:\\Users\\YOUR_USERNAME\\AppData\\Local\\Programs\\mcp-server-demo\\src",
+          "server.py"
+        ]
+      }
+      // ... other servers might be here ...
+    }
+  }
+``` 
+
+(Remember to replace YOUR_USERNAME and use double backslashes \\)
+
+**Using uv With macOS:**
+
+```json
+{
+  "mcpServers": {
+    "mcp-server-demo": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/usr/local/bin/mcp-server-demo/src",
+        "server.py"
+      ]
+    }
+    // ... other servers might be here ...
+  }
+}
+```
+(Replace YOUR_USERNAME if using ~/bin)
+
+**Using uv With Linux:**
+
+```json
+{
+  "mcpServers": {
+    "mcp-server-demo": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/home/YOUR_USERNAME/bin/mcp-server-demo/src",
+        "server.py"
+      ]
+    }
+    // ... other servers might be here ...
+  }
+}
+```
+
 
 **Using Docker (Requires Docker)**
 
