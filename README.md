@@ -4,6 +4,10 @@
 
 Bybit MCP (Model Context Protocol) Server. Provides a convenient interface to interact with the Bybit API using MCP tools. Allows fetching market data, managing account information, and placing/canceling orders via API calls wrapped as tools.
 
+<a href="https://glama.ai/mcp/servers/@dlwjdtn535/mcp-bybit-server">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@dlwjdtn535/mcp-bybit-server/badge" alt="Bybit Server MCP server" />
+</a>
+
 ## Usage
 
 ### Installing via Smithery
@@ -211,4 +215,3 @@ We welcome your questions and feedback!
 ## License
 
 MIT License
-
