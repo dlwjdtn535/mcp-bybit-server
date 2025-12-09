@@ -117,6 +117,24 @@ Make sure you have pulled the image first: `docker pull dlwjdtn535/mcp-bybit-ser
 }
 ```
 
+**Using Docker with .env (Requires Docker)**
+
+Make sure you have pulled the image first: `docker pull dlwjdtn535/mcp-bybit-server:latest`
+
+```json
+{
+  "mcpServers": {
+    "bybit-server-docker": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "source .env && docker run -i --rm --init -e ACCESS_KEY=$BYBIT_API_KEY -e SECRET_KEY=$BYBIT_API_SECRET -e TESTNET=true dlwjdtn535/mcp-bybit-server:latest"
+      ]
+    }
+  }
+}
+```
+
 > **Note**: Always use `@latest` or a specific version tag for both NPX and Docker to ensure you are using the intended version.
 
 ## Tools 🛠️
