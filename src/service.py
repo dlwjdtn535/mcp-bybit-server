@@ -1,10 +1,9 @@
 import logging
 from typing import Dict, Optional
+
 from pybit.unified_trading import HTTP
 
-from config import Config
-# import pandas as pd # Removed as it was only used for talib
-# from talib import abstract # Removed as talib is no longer used
+from config import RESPONSE_VERBOSITY, Config
 
 # Logging configuration
 logging.basicConfig(
@@ -14,6 +13,40 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+# Core fields kept per endpoint when RESPONSE_VERBOSITY == "minimal".
+# Trimming reduces token usage for LLM clients without changing the response shape.
+_MINIMAL_FIELDS = {
+    "tickers": [
+        "symbol", "lastPrice", "bid1Price", "ask1Price",
+        "price24hPcnt", "volume24h", "turnover24h", "markPrice", "indexPrice",
+    ],
+    "positions": [
+        "symbol", "side", "size", "avgPrice", "markPrice",
+        "unrealisedPnl", "leverage", "positionIdx", "liqPrice",
+    ],
+}
+
+
+def trim_response(result: Dict, kind: str) -> Dict:
+    """Trim a Bybit ``result.list`` to core fields when RESPONSE_VERBOSITY == "minimal".
+
+    Returns the response untouched for "normal"/"full" verbosity, on unknown ``kind``,
+    or when the payload does not have the expected ``result.list`` shape.
+    """
+    if RESPONSE_VERBOSITY != "minimal":
+        return result
+    fields = _MINIMAL_FIELDS.get(kind)
+    if not fields or not isinstance(result, dict):
+        return result
+    data = result.get("result")
+    if isinstance(data, dict) and isinstance(data.get("list"), list):
+        data["list"] = [
+            {k: item.get(k) for k in fields if k in item}
+            for item in data["list"]
+            if isinstance(item, dict)
+        ]
+    return result
 
 
 class BybitService:
@@ -102,9 +135,9 @@ class BybitService:
         Returns:
             Dict: Ticker information
         """
-        return self.client.get_tickers(
-            category=category,
-            symbol=symbol
+        return trim_response(
+            self.client.get_tickers(category=category, symbol=symbol),
+            "tickers",
         )
 
     # Account related methods
@@ -135,15 +168,15 @@ class BybitService:
         Returns:
             Dict: Position information
         """
-        return self.client.get_positions(
-            category=category,
-            symbol=symbol
+        return trim_response(
+            self.client.get_positions(category=category, symbol=symbol),
+            "positions",
         )
 
     # Order related methods
     def place_order(self, category: str, symbol: str, side: str, orderType: str,
                     qty: str, price: Optional[str] = None,
-                    positionIdx: Optional[int] = None,
+                    positionIdx: Optional[str] = None,
                     timeInForce: Optional[str] = None, orderLinkId: Optional[str] = None,
                     isLeverage: Optional[int] = None, orderFilter: Optional[str] = None,
                     triggerPrice: Optional[str] = None, triggerBy: Optional[str] = None,
@@ -190,10 +223,10 @@ class BybitService:
             triggerPrice (Optional[str]): Trigger price
             triggerBy (Optional[str]): Trigger basis
             orderIv (Optional[str]): Order volatility
-            positionIdx (Optional[int]): Position index
+            positionIdx (Optional[str]): Position index
                 - Required for futures (linear/inverse) trading
-                - 1: Long position
-                - 2: Short position
+                - "1": Long position
+                - "2": Short position
                 - positionIdx is not used for spot trading
             takeProfit (Optional[str]): Take profit price
             stopLoss (Optional[str]): Stop loss price
@@ -219,8 +252,8 @@ class BybitService:
                        tpOrderType="Market", slOrderType="Market")  # Execute TP/SL as market order
 
             # Futures trading
-            place_order("linear", "BTCUSDT", "Buy", "Market", "0.001", positionIdx=1)  # Buy market price for long position
-            place_order("linear", "BTCUSDT", "Sell", "Market", "0.001", positionIdx=2)  # Sell market price for short position
+            place_order("linear", "BTCUSDT", "Buy", "Market", "0.001", positionIdx="1")  # Buy market price for long position
+            place_order("linear", "BTCUSDT", "Sell", "Market", "0.001", positionIdx="2")  # Sell market price for short position
 
         Notes:
             1. Spot trading order quantity restrictions:
@@ -231,8 +264,8 @@ class BybitService:
                 - Buying: qty should be input in USDT units (e.g., "10" = 10 USDT)
                 - Selling: qty should be input in BTC units (e.g., "0.000100" = 0.0001 BTC)
             3. Futures trading requires positionIdx:
-                - Long position: positionIdx=1
-                - Short position: positionIdx=2
+                - Long position: positionIdx="1"
+                - Short position: positionIdx="2"
             4. positionIdx is not used for spot trading
 
         Reference site:
@@ -249,7 +282,7 @@ class BybitService:
 
             # Check positionIdx for futures trading
             if category in ["linear", "inverse"]:
-                if not positionIdx or positionIdx not in ["1", "2"]:
+                if positionIdx is None or str(positionIdx) not in ("1", "2"):
                     return {"error": "positionIdx is required for futures trading (1: Long position, 2: Short position)"}
             
             # Ignore positionIdx for spot trading
@@ -507,6 +540,217 @@ class BybitService:
             status=status,
             baseCoin=baseCoin
         )
+
+    def get_public_trade_history(self, category: str, symbol: str, limit: int = 50) -> Dict:
+        """
+        Get recent public trade history (executions) for a symbol.
+
+        Args:
+            category (str): Category (spot, linear, inverse, option)
+            symbol (str): Symbol (e.g., BTCUSDT)
+            limit (int): Number of trades to retrieve
+
+        Returns:
+            Dict: Recent public trades
+        """
+        return self.client.get_public_trade_history(
+            category=category,
+            symbol=symbol,
+            limit=limit,
+        )
+
+    def get_funding_rate_history(self, category: str, symbol: str,
+                                 startTime: Optional[int] = None,
+                                 endTime: Optional[int] = None,
+                                 limit: int = 200) -> Dict:
+        """
+        Get historical funding rates for a perpetual/futures symbol.
+
+        Args:
+            category (str): Category (linear, inverse)
+            symbol (str): Symbol (e.g., BTCUSDT)
+            startTime (Optional[int]): Start time in milliseconds
+            endTime (Optional[int]): End time in milliseconds
+            limit (int): Number of records to retrieve
+
+        Returns:
+            Dict: Funding rate history
+        """
+        return self.client.get_funding_rate_history(
+            category=category,
+            symbol=symbol,
+            startTime=startTime,
+            endTime=endTime,
+            limit=limit,
+        )
+
+    def get_open_interest(self, category: str, symbol: str, intervalTime: str = "1h",
+                          startTime: Optional[int] = None, endTime: Optional[int] = None,
+                          limit: int = 50) -> Dict:
+        """
+        Get open interest of a symbol over time.
+
+        Args:
+            category (str): Category (linear, inverse)
+            symbol (str): Symbol (e.g., BTCUSDT)
+            intervalTime (str): Interval (5min, 15min, 30min, 1h, 4h, 1d)
+            startTime (Optional[int]): Start time in milliseconds
+            endTime (Optional[int]): End time in milliseconds
+            limit (int): Number of records to retrieve
+
+        Returns:
+            Dict: Open interest data
+        """
+        return self.client.get_open_interest(
+            category=category,
+            symbol=symbol,
+            intervalTime=intervalTime,
+            startTime=startTime,
+            endTime=endTime,
+            limit=limit,
+        )
+
+    def get_fee_rate(self, category: str, symbol: Optional[str] = None,
+                     baseCoin: Optional[str] = None) -> Dict:
+        """
+        Get maker/taker trading fee rates.
+
+        Args:
+            category (str): Category (spot, linear, inverse, option)
+            symbol (Optional[str]): Symbol (e.g., BTCUSDT)
+            baseCoin (Optional[str]): Base coin (e.g., BTC)
+
+        Returns:
+            Dict: Fee rate information
+        """
+        return self.client.get_fee_rates(
+            category=category,
+            symbol=symbol,
+            baseCoin=baseCoin,
+        )
+
+    def get_server_time(self) -> Dict:
+        """
+        Get the Bybit server time (for clock synchronization).
+
+        Returns:
+            Dict: Server time
+        """
+        return self.client.get_server_time()
+
+    def amend_order(self, category: str, symbol: str,
+                    orderId: Optional[str] = None, orderLinkId: Optional[str] = None,
+                    qty: Optional[str] = None, price: Optional[str] = None,
+                    triggerPrice: Optional[str] = None,
+                    takeProfit: Optional[str] = None, stopLoss: Optional[str] = None) -> Dict:
+        """
+        Amend (modify) an existing open order without cancel + re-place.
+
+        Args:
+            category (str): Category (linear, inverse, spot, option)
+            symbol (str): Symbol (e.g., BTCUSDT)
+            orderId (Optional[str]): Order ID (either orderId or orderLinkId required)
+            orderLinkId (Optional[str]): Order link ID
+            qty (Optional[str]): New order quantity
+            price (Optional[str]): New order price
+            triggerPrice (Optional[str]): New trigger price
+            takeProfit (Optional[str]): New take profit price
+            stopLoss (Optional[str]): New stop loss price
+
+        Returns:
+            Dict: Amend result
+        """
+        request_data = {"category": category, "symbol": symbol}
+        if orderId is not None:
+            request_data["orderId"] = orderId
+        if orderLinkId is not None:
+            request_data["orderLinkId"] = orderLinkId
+        if qty is not None:
+            request_data["qty"] = qty
+        if price is not None:
+            request_data["price"] = price
+        if triggerPrice is not None:
+            request_data["triggerPrice"] = triggerPrice
+        if takeProfit is not None:
+            request_data["takeProfit"] = takeProfit
+        if stopLoss is not None:
+            request_data["stopLoss"] = stopLoss
+        return self.client.amend_order(**request_data)
+
+    def cancel_all_orders(self, category: str, symbol: Optional[str] = None,
+                          baseCoin: Optional[str] = None, settleCoin: Optional[str] = None,
+                          orderFilter: Optional[str] = None) -> Dict:
+        """
+        Cancel all open orders, optionally scoped by symbol/baseCoin/settleCoin.
+
+        Args:
+            category (str): Category (spot, linear, inverse, option)
+            symbol (Optional[str]): Symbol (e.g., BTCUSDT)
+            baseCoin (Optional[str]): Base coin
+            settleCoin (Optional[str]): Settle coin
+            orderFilter (Optional[str]): Order filter (Order, tpslOrder, StopOrder)
+
+        Returns:
+            Dict: Cancel result (list of cancelled orders)
+        """
+        request_data = {"category": category}
+        if symbol is not None:
+            request_data["symbol"] = symbol
+        if baseCoin is not None:
+            request_data["baseCoin"] = baseCoin
+        if settleCoin is not None:
+            request_data["settleCoin"] = settleCoin
+        if orderFilter is not None:
+            request_data["orderFilter"] = orderFilter
+        return self.client.cancel_all_orders(**request_data)
+
+    def market_snapshot(self, category: str, symbol: str,
+                        interval: str = "60", kline_limit: int = 50,
+                        orderbook_limit: int = 25, trades_limit: int = 25) -> Dict:
+        """
+        Composite market view: orderbook + ticker + kline + instrument info + recent
+        trades (plus funding rate and open interest for linear/inverse). Combines
+        several Bybit calls into one structured response to save round-trips and tokens.
+
+        Each section contains either the Bybit ``result`` payload or an ``{"error": ...}``
+        entry, so a single failing call does not fail the whole snapshot.
+
+        Args:
+            category (str): Category (spot, linear, inverse)
+            symbol (str): Symbol (e.g., BTCUSDT)
+            interval (str): Kline interval (default "60")
+            kline_limit (int): Number of kline records
+            orderbook_limit (int): Orderbook depth
+            trades_limit (int): Number of recent trades
+
+        Returns:
+            Dict: Combined market snapshot
+        """
+        def _section(fn) -> Dict:
+            try:
+                res = fn()
+                if isinstance(res, dict) and res.get("retCode") not in (0, None):
+                    return {"error": res.get("retMsg")}
+                return res.get("result", res) if isinstance(res, dict) else res
+            except Exception as e:  # noqa: BLE001 - per-section isolation
+                logger.error(f"market_snapshot section failed: {e}", exc_info=True)
+                return {"error": str(e)}
+
+        snapshot = {
+            "category": category,
+            "symbol": symbol,
+            "orderbook": _section(lambda: self.get_orderbook(category, symbol, orderbook_limit)),
+            "ticker": _section(lambda: self.get_tickers(category, symbol)),
+            "kline": _section(lambda: self.get_kline(category, symbol, interval, limit=kline_limit)),
+            "instrument": _section(lambda: self.get_instruments_info(category, symbol)),
+            "recent_trades": _section(lambda: self.get_public_trade_history(category, symbol, trades_limit)),
+        }
+        if category in ("linear", "inverse"):
+            snapshot["funding_rate"] = _section(
+                lambda: self.get_funding_rate_history(category, symbol, limit=1))
+            snapshot["open_interest"] = _section(
+                lambda: self.get_open_interest(category, symbol, limit=1))
+        return snapshot
 
 
 if __name__ == "__main__":

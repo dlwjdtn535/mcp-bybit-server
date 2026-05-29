@@ -2,13 +2,34 @@
 [![smithery badge](https://smithery.ai/badge/@dlwjdtn535/mcp-bybit-server)](https://smithery.ai/server/@dlwjdtn535/mcp-bybit-server)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg)](https://buymeacoffee.com/dlwjdtn535)
 
-Bybit MCP (Model Context Protocol) Server. Provides a convenient interface to interact with the Bybit API using MCP tools. Allows fetching market data, managing account information, and placing/canceling orders via API calls wrapped as tools.
+Bybit MCP (Model Context Protocol) Server. Provides a convenient interface to interact with the [Bybit V5 API](https://bybit-exchange.github.io/docs/v5/intro) using MCP tools. Allows fetching market data, managing account information, and placing/canceling orders via API calls wrapped as tools.
 
 <a href="https://glama.ai/mcp/servers/@dlwjdtn535/mcp-bybit-server">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@dlwjdtn535/mcp-bybit-server/badge" alt="Bybit Server MCP server" />
 </a>
 
-## Usage
+## ⚠️ Security & Safety
+
+This server can place **real trades with real money**. Read this before configuring it:
+
+- **Trading is disabled by default.** Mutating tools (`place_order`, `cancel_order`, `amend_order`, `cancel_all_orders`, `set_trading_stop`, `set_margin_mode`, `set_leverage`) return an error unless you explicitly set `TRADING_ENABLED=true`.
+- **Use the testnet first.** Set `TESTNET=true` while you experiment. Combine with `TRADING_ENABLED=false` for a fully read-only setup, or set `READONLY_MODE=true` to hard-block every mutating tool regardless of other settings.
+- **Order size is capped.** `MAX_ORDER_SIZE_USDT` (default `100`) limits the estimated notional value of an order to guard against accidental large trades.
+- **API keys are never logged or exposed.** No tool returns your keys; logs only report whether a key is present.
+- **Never commit your API keys.** Provide them through environment variables only.
+
+## Installation
+
+Requires Python 3.12+. This project uses [uv](https://docs.astral.sh/uv/).
+
+```bash
+git clone https://github.com/dlwjdtn535/mcp-bybit-server.git
+cd mcp-bybit-server
+uv sync
+uv run mcp-bybit-server   # runs the MCP server over stdio
+```
+
+After install, the `mcp-bybit-server` command is the entry point used by the MCP client configs below.
 
 ### Installing via Smithery
 
@@ -18,85 +39,39 @@ To install this Bybit API Interface server for Claude Desktop automatically via 
 npx -y @smithery/cli install @dlwjdtn535/mcp-bybit-server --client claude
 ```
 
-### Using with Claude, Roo Code, Cline, etc.
+## Configuration (Claude Desktop, Cline, Roo Code, etc.)
 
-Add the following configuration to your MCP settings file (e.g., `mcp_settings.json`):
-**Using uv With Windows:**
+Add one of the following to your MCP settings file (e.g. `claude_desktop_config.json` / `mcp_settings.json`).
 
-  ```json
-  {
-    "mcpServers": {
-      "mcp-server-demo": {
-        "command": "uv",
-        "args": [
-          "run",
-          "--directory",
-          "C:\\Users\\YOUR_USERNAME\\AppData\\Local\\Programs\\mcp-server-demo\\src",
-          "server.py"
-        ],
-        "env": {
-            "ACCESS_KEY": "{ACCESS_KEY}",
-            "SECRET_KEY": "{ACCESS_KEY}"
-          }
-      }
-      // ... other servers might be here ...
-    }
-  }
-``` 
-
-(Remember to replace YOUR_USERNAME and use double backslashes \\)
-
-**Using uv With macOS:**
+**Using uv (run from a cloned repo):**
 
 ```json
 {
   "mcpServers": {
-    "mcp-server-demo": {
+    "bybit": {
       "command": "uv",
       "args": [
         "run",
         "--directory",
-        "/usr/local/bin/mcp-server-demo/src",
-        "server.py"
+        "/absolute/path/to/mcp-bybit-server",
+        "mcp-bybit-server"
       ],
       "env": {
-        "ACCESS_KEY": "{ACCESS_KEY}",
-        "SECRET_KEY": "{ACCESS_KEY}"
+        "ACCESS_KEY": "YOUR_BYBIT_API_KEY",
+        "SECRET_KEY": "YOUR_BYBIT_SECRET_KEY",
+        "TESTNET": "true",
+        "TRADING_ENABLED": "false"
       }
     }
-    // ... other servers might be here ...
-  }
-}
-```
-(Replace YOUR_USERNAME if using ~/bin)
-
-**Using uv With Linux:**
-
-```json
-{
-  "mcpServers": {
-    "mcp-server-demo": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--directory",
-        "/home/YOUR_USERNAME/bin/mcp-server-demo/src",
-        "server.py"
-      ],
-      "env": {
-        "ACCESS_KEY": "{ACCESS_KEY}",
-        "SECRET_KEY": "{ACCESS_KEY}"
-      }
-    }
-    // ... other servers might be here ...
   }
 }
 ```
 
+On Windows, use an absolute path with double backslashes (e.g. `C:\\Users\\YOUR_USERNAME\\mcp-bybit-server`).
 
-**Using Docker (Requires Docker)**
+**Using Docker:**
 
-Make sure you have pulled the image first: `docker pull dlwjdtn535/mcp-bybit-server:latest`
+First pull the image: `docker pull dlwjdtn535/mcp-bybit-server:latest`
 
 ```json
 {
@@ -105,30 +80,15 @@ Make sure you have pulled the image first: `docker pull dlwjdtn535/mcp-bybit-ser
       "command": "docker",
       "args": [
         "run",
-        "-i", 
+        "-i",
         "--rm",
         "--init",
-        "-e", "ACCESS_KEY={ACCESS_KEY}",
-        "-e", "SECRET_KEY={SECRET_KEY}",
+        "-e", "ACCESS_KEY=YOUR_BYBIT_API_KEY",
+        "-e", "SECRET_KEY=YOUR_BYBIT_SECRET_KEY",
+        "-e", "TESTNET=true",
+        "-e", "TRADING_ENABLED=false",
+        "-e", "MAX_ORDER_SIZE_USDT=100",
         "dlwjdtn535/mcp-bybit-server:latest"
-      ]
-    }
-  }
-}
-```
-
-**Using Docker with .env (Requires Docker)**
-
-Make sure you have pulled the image first: `docker pull dlwjdtn535/mcp-bybit-server:latest`
-
-```json
-{
-  "mcpServers": {
-    "bybit-server-docker": {
-      "command": "/bin/sh",
-      "args": [
-        "-c",
-        "source .env && docker run -i --rm --init -e ACCESS_KEY=$BYBIT_API_KEY -e SECRET_KEY=$BYBIT_API_SECRET -e TESTNET=true dlwjdtn535/mcp-bybit-server:latest"
       ]
     }
   }
@@ -137,81 +97,80 @@ Make sure you have pulled the image first: `docker pull dlwjdtn535/mcp-bybit-ser
 
 > **Note**: Always use `@latest` or a specific version tag for both NPX and Docker to ensure you are using the intended version.
 
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ACCESS_KEY` | Yes | – | Bybit API key. |
+| `SECRET_KEY` | Yes | – | Bybit API secret. |
+| `MEMBER_ID` | No | – | Bybit member ID (optional). |
+| `TESTNET` | No | `false` | Use the Bybit testnet when `true`. |
+| `TRADING_ENABLED` | No | `false` | Must be `true` to allow any mutating/trading tool. |
+| `READONLY_MODE` | No | `false` | When `true`, blocks every mutating tool (takes precedence over `TRADING_ENABLED`). |
+| `MAX_ORDER_SIZE_USDT` | No | `100` | Caps the estimated notional value (USDT) of a single order. |
+| `RESPONSE_VERBOSITY` | No | `normal` | `minimal` trims `get_tickers`/`get_positions` responses to core fields to save tokens; `normal`/`full` return the full payload. |
+
 ## Tools 🛠️
 
-This MCP server provides the following tools for interacting with the Bybit API:
+### Market data
+- **`get_orderbook`** — order book (`category`, `symbol`, `limit?`).
+- **`get_kline`** — candlesticks (`category`, `symbol`, `interval`, `start?`, `end?`, `limit?`).
+- **`get_tickers`** — ticker info (`category`, `symbol`).
+- **`get_public_trade_history`** — recent public trades (`category`, `symbol`, `limit?`).
+- **`get_instruments_info`** — instrument metadata / limits (`category`, `symbol`, `status?`, `baseCoin?`).
+- **`get_funding_rate_history`** — funding rate history for perps (`category`, `symbol`, `startTime?`, `endTime?`, `limit?`).
+- **`get_open_interest`** — open interest over time (`category`, `symbol`, `intervalTime?`, ...).
+- **`get_fee_rate`** — maker/taker fee rates (`category`, `symbol?`, `baseCoin?`).
+- **`get_server_time`** — Bybit server time.
+- **`market_snapshot`** — composite market view (orderbook + ticker + kline + instrument + recent trades, plus funding rate & open interest for futures) in a single call.
 
-1.  **`get_orderbook`**: Fetches order book information.
-    *   Inputs: `category`, `symbol`, `limit` (optional)
-    *   Returns: Order book details.
-2.  **`get_kline`**: Fetches K-line (candlestick) data.
-    *   Inputs: `category`, `symbol`, `interval`, `start` (optional), `end` (optional), `limit` (optional)
-    *   Returns: Candlestick data.
-3.  **`get_tickers`**: Fetches cryptocurrency ticker information.
-    *   Inputs: `category`, `symbol`
-    *   Returns: Ticker information.
-4.  **`get_wallet_balance`**: Fetches account balance.
-    *   Inputs: `accountType`, `coin` (optional)
-    *   Returns: Balance information.
-5.  **`get_positions`**: Fetches position information.
-    *   Inputs: `category`, `symbol` (optional)
-    *   Returns: Position information.
-6.  **`place_order`**: Places a limit or market order.
-    *   Inputs: `category`, `symbol`, `side`, `orderType`, `qty`, `price` (optional for limit), `positionIdx` (optional for futures), and other optional parameters (e.g., `timeInForce`, `takeProfit`, `stopLoss`).
-    *   Returns: Order placement confirmation.
-7.  **`cancel_order`**: Cancels an existing order.
-    *   Inputs: `category`, `symbol`, `orderId` (optional), `orderLinkId` (optional)
-    *   Returns: Cancellation confirmation.
-8.  **`get_order_history`**: Fetches historical order details.
-    *   Inputs: `category`, `symbol` (optional), `orderId` (optional), `limit` (optional), etc.
-    *   Returns: Order history.
-9. **`get_open_orders`**: Fetches current open orders.
-    *   Inputs: `category`, `symbol` (optional), `limit` (optional), etc.
-    *   Returns: Open order details.
-10. **`set_trading_stop`**: Sets take profit, stop loss, or trailing stop for a position.
-    *   Inputs: `category`, `symbol`, `takeProfit` (optional), `stopLoss` (optional), `trailingStop` (optional), `positionIdx` (optional)
-    *   Returns: Setting confirmation.
-11. **`set_margin_mode`**: Sets the margin mode (isolated or cross).
-    *   Inputs: `category`, `symbol`, `tradeMode`, `buyLeverage`, `sellLeverage`
-    *   Returns: Setting confirmation.
-12. **`get_api_key_information`**: Fetches information about the current API key.
-    *   Inputs: None
-    *   Returns: API key details.
-13. **`get_instruments_info`**: Fetches details about trading instruments (symbols).
-    *   Inputs: `category`, `symbol`, `status` (optional), `baseCoin` (optional)
-    *   Returns: Instrument details.
+### Account
+- **`get_wallet_balance`** — balances (`accountType`, `coin?`).
+- **`get_positions`** — open positions (`category`, `symbol?`).
+- **`get_order_history`** — historical orders.
+- **`get_open_orders`** — current open orders.
+- **`get_api_key_information`** — API key details.
+
+### Trading (mutating — requires `TRADING_ENABLED=true`)
+- **`validate_order`** — pre-flight validation; never places an order. Not blocked by trading flags.
+- **`place_order`** — place an order; supports `dry_run=true` to validate without placing.
+- **`amend_order`** — modify an existing order in place.
+- **`cancel_order`** — cancel a single order.
+- **`cancel_all_orders`** — cancel all open orders (optionally scoped).
+- **`set_trading_stop`** — set take profit / stop loss / trailing stop.
+- **`set_margin_mode`** — set isolated/cross margin.
+- **`set_leverage`** — set leverage for a futures symbol.
 
 _(Refer to the function docstrings in the code for detailed parameter descriptions and examples.)_
 
-## Environment Variables
-
-Before running the server, you **must** set the following environment variables:
-
-```bash
-ACCESS_KEY=YOUR_BYBIT_API_KEY
-SECRET_KEY=YOUR_BYBIT_SECRET_KEY
-TESTNET=false # Optional: set to true for testnet
-```
-
 ## API Key Setup
 
-To use this Bybit API interface, you need to create an API key from Bybit. Follow these important steps:
+To use this Bybit API interface, create an API key from Bybit:
 
-1.  Go to Bybit and log into your account.
+1.  Log into your Bybit account.
 2.  Navigate to API Management.
 3.  Create a new API key.
-4.  **Important Security Settings:**
-    *   Enable IP restriction if possible.
-    *   Add ONLY the IP address(es) from which the server will run (your local PC IP, server IP, or Docker container's external IP).
+4.  **Important security settings:**
+    *   Enable IP restriction if possible, and add ONLY the IP address(es) the server runs from.
     *   Never share your API keys or expose them in public repositories.
     *   Recommended permissions:
-        *   Read (Required)
-        *   Trade (Required for order execution)
-        *   Wallet (Required for balance checking)
+        *   Read (required)
+        *   Trade (required only if you enable order execution)
+        *   Wallet (required for balance checking)
+
+## Development
+
+```bash
+uv sync --group dev   # install dev dependencies (pytest, ruff)
+uv run ruff check .   # lint
+uv run pytest -q      # run the unit test suite (no live API calls)
+```
+
+CI (GitHub Actions) runs lint + tests on every push/PR; Docker images are built and published automatically on pushes to `main`.
 
 ## Sponsorship & Donations
 
-If you find this project helpful and would like to support its development, you can contribute in the following ways:
+If you find this project helpful and would like to support its development:
 
 ### Buy Me a Coffee
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/dlwjdtn535)
@@ -232,4 +191,4 @@ We welcome your questions and feedback!
 
 ## License
 
-MIT License
+[MIT License](LICENSE)

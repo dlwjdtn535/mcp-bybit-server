@@ -13,6 +13,12 @@ dependencies = [
 [project.scripts]
 mcp-bybit-server = "server:main"
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.6.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -25,4 +31,17 @@ packages = ["src"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = ["E501"]  # long lines are common in API docstrings
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
 

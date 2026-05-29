@@ -1,11 +1,11 @@
 import logging
-import os
 import sys
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
+from config import MAX_ORDER_SIZE_USDT, Config
 from service import BybitService
 
 # Logging configuration
@@ -15,16 +15,90 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# BEZPIECZENSTWO: NIE logujemy kluczy API
+# SECURITY: API keys are never logged and never exposed through any tool.
 
 # Create BybitService instance
 bybit_service = BybitService()
 
-# BEZPIECZENSTWO: NIE przekazujemy kluczy do MCP env
-# BEZPIECZENSTWO: USUNIETO get_secret_key() i get_access_key() -- LLM NIE moze wyciagnac kluczy
-mcp = FastMCP()
+mcp = FastMCP(name="bybit")
 
-from config import Config
+
+def _trading_guard() -> Optional[Dict]:
+    """Return an error dict if mutating actions are currently blocked, else None.
+
+    READONLY_MODE takes precedence over TRADING_ENABLED. Every mutating tool must
+    call this before touching the account.
+    """
+    if Config.READONLY_MODE:
+        return {"error": "Read-only mode is enabled. Set READONLY_MODE=false to allow trading actions."}
+    if not Config.TRADING_ENABLED:
+        return {"error": "Trading is DISABLED. Set TRADING_ENABLED=true to enable."}
+    return None
+
+
+def _last_price(category: str, symbol: str) -> Optional[float]:
+    """Best-effort last/mark price lookup used to estimate order notional. None on failure."""
+    try:
+        res = bybit_service.get_tickers(category, symbol)
+        rows = (res or {}).get("result", {}).get("list") or []
+        if rows:
+            price = rows[0].get("lastPrice") or rows[0].get("markPrice")
+            return float(price) if price is not None else None
+    except Exception as e:  # noqa: BLE001 - estimation is best-effort
+        logger.warning(f"Could not fetch reference price for {symbol}: {e}")
+    return None
+
+
+def _check_order_size(category: str, symbol: str, side: str,
+                      orderType: str, qty: str, price: Optional[str]) -> Optional[Dict]:
+    """Enforce MAX_ORDER_SIZE_USDT across spot and futures. Returns error dict or None.
+
+    Estimates notional value in USDT: spot market buy uses qty directly (already USDT);
+    spot limit and futures use qty * price (or qty * last price when no limit price).
+    If the notional cannot be estimated, the order is allowed but a warning is logged.
+    """
+    try:
+        qty_f = float(qty)
+    except (TypeError, ValueError):
+        return {"error": f"Invalid qty: {qty}. Must be a number."}
+
+    notional: Optional[float] = None
+    if category == "spot":
+        if side == "Buy" and orderType == "Market":
+            notional = qty_f  # qty is already in USDT for spot market buys
+        elif price is not None:
+            try:
+                notional = qty_f * float(price)
+            except (TypeError, ValueError):
+                notional = None
+    else:  # linear / inverse / option
+        ref_price: Optional[float] = None
+        if price is not None:
+            try:
+                ref_price = float(price)
+            except (TypeError, ValueError):
+                ref_price = None
+        if ref_price is None:
+            ref_price = _last_price(category, symbol)
+        if ref_price is not None:
+            notional = qty_f * ref_price
+
+    if notional is None:
+        logger.warning(
+            f"Could not estimate notional for {symbol} ({category} {side} {orderType}); "
+            f"MAX_ORDER_SIZE_USDT cap not enforced for this order."
+        )
+        return None
+    if notional > MAX_ORDER_SIZE_USDT:
+        return {
+            "error": (
+                f"Estimated order notional {notional:.2f} USDT exceeds MAX_ORDER_SIZE_USDT "
+                f"({MAX_ORDER_SIZE_USDT}). Adjust the MAX_ORDER_SIZE_USDT env var to allow larger orders."
+            )
+        }
+    return None
+
+
 @mcp.tool()
 def get_orderbook(
     category: str = Field(description="Category (spot, linear, inverse, etc.)"),
@@ -221,7 +295,8 @@ def place_order(
     tpLimitPrice: Optional[str] = Field(default=None, description="Take profit limit price"),
     slLimitPrice: Optional[str] = Field(default=None, description="Stop loss limit price"),
     tpOrderType: Optional[str] = Field(default=None, description="Take profit order type (Market, Limit)"),
-    slOrderType: Optional[str] = Field(default=None, description="Stop loss order type (Market, Limit)")
+    slOrderType: Optional[str] = Field(default=None, description="Stop loss order type (Market, Limit)"),
+    dry_run: bool = Field(default=False, description="If true, validate the order and return the request without placing it")
 ) -> Dict:
     """
     Execute order
@@ -310,11 +385,12 @@ def place_order(
         https://bybit-exchange.github.io/docs/v5/order/create-order
     """
     try:
-        # BEZPIECZENSTWO: Trading musi byc jawnie wlaczony
-        if not Config.TRADING_ENABLED:
-            return {"error": "Trading is DISABLED. Set TRADING_ENABLED=true to enable."}
+        # SECURITY: trading must be explicitly enabled (and not read-only)
+        guard = _trading_guard()
+        if guard:
+            return guard
 
-        # BEZPIECZENSTWO: Walidacja inputow
+        # SECURITY: input validation
         if side not in ("Buy", "Sell"):
             return {"error": f"Invalid side: {side}. Must be 'Buy' or 'Sell'."}
         if orderType not in ("Market", "Limit"):
@@ -322,16 +398,23 @@ def place_order(
         if category not in ("spot", "linear", "inverse", "option"):
             return {"error": f"Invalid category: {category}. Must be 'spot', 'linear', 'inverse', or 'option'."}
 
-        # BEZPIECZENSTWO: Max order size check
-        from config import MAX_ORDER_SIZE_USDT
-        try:
-            qty_float = float(qty)
-            if category == "spot" and side == "Buy" and orderType == "Market":
-                # Market buy na spot -- qty jest w USDT
-                if qty_float > MAX_ORDER_SIZE_USDT:
-                    return {"error": f"Order size {qty} USDT exceeds max {MAX_ORDER_SIZE_USDT} USDT. Adjust MAX_ORDER_SIZE_USDT env var."}
-        except ValueError:
-            return {"error": f"Invalid qty: {qty}. Must be a number."}
+        # SECURITY: enforce max order size across spot and futures
+        size_error = _check_order_size(category, symbol, side, orderType, qty, price)
+        if size_error:
+            return size_error
+
+        # Dry-run: return the validated request without placing the order
+        if dry_run:
+            return {
+                "dry_run": True,
+                "valid": True,
+                "message": "Validation passed. Order was NOT placed (dry_run=true).",
+                "request": {
+                    "category": category, "symbol": symbol, "side": side,
+                    "orderType": orderType, "qty": qty, "price": price,
+                    "positionIdx": positionIdx,
+                },
+            }
 
         result = bybit_service.place_order(
             category=category, symbol=symbol, side=side, orderType=orderType,
@@ -381,8 +464,9 @@ def cancel_order(
         https://bybit-exchange.github.io/docs/v5/order/cancel-order
     """
     try:
-        if not Config.TRADING_ENABLED:
-            return {"error": "Trading is DISABLED. Set TRADING_ENABLED=true to enable."}
+        guard = _trading_guard()
+        if guard:
+            return guard
         result = bybit_service.cancel_order(category, symbol, orderId, orderLinkId, orderFilter)
         if result.get("retCode") != 0:
             logger.error(f"Failed to cancel order: {result.get('retMsg')}")
@@ -514,6 +598,9 @@ def set_trading_stop(
         https://bybit-exchange.github.io/docs/v5/position/trading-stop
     """
     try:
+        guard = _trading_guard()
+        if guard:
+            return guard
         result = bybit_service.set_trading_stop(
             category, symbol, takeProfit, stopLoss, trailingStop, positionIdx
         )
@@ -554,6 +641,9 @@ def set_margin_mode(
         https://bybit-exchange.github.io/docs/v5/account/set-margin-mode
     """
     try:
+        guard = _trading_guard()
+        if guard:
+            return guard
         result = bybit_service.set_margin_mode(
             category, symbol, tradeMode, buyLeverage, sellLeverage
         )
@@ -627,42 +717,478 @@ def get_instruments_info(
         return {"error": str(e)}
 
 
+@mcp.tool()
+def set_leverage(
+    category: str = Field(description="Category (linear, inverse)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    buyLeverage: str = Field(description="Buy leverage (e.g., '10')"),
+    sellLeverage: str = Field(description="Sell leverage (e.g., '10')")
+) -> Dict:
+    """
+    Set leverage for a futures symbol.
+
+    Args:
+        category (str): Category (linear, inverse)
+        symbol (str): Symbol (e.g., BTCUSDT)
+        buyLeverage (str): Buy leverage
+        sellLeverage (str): Sell leverage
+
+    Returns:
+        Dict: Setting result
+
+    Example:
+        set_leverage("linear", "BTCUSDT", "10", "10")
+
+    Reference:
+        https://bybit-exchange.github.io/docs/v5/position/leverage
+    """
+    try:
+        guard = _trading_guard()
+        if guard:
+            return guard
+        result = bybit_service.set_leverage(category, symbol, buyLeverage, sellLeverage)
+        if result.get("retCode") != 0:
+            logger.error(f"Failed to set leverage: {result.get('retMsg')}")
+            return {"error": result.get("retMsg")}
+        return result
+    except Exception as e:
+        logger.error(f"Failed to set leverage: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def get_public_trade_history(
+    category: str = Field(description="Category (spot, linear, inverse, option)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    limit: int = Field(default=50, description="Number of recent trades to retrieve")
+) -> Dict:
+    """
+    Get recent public trade (execution) history for a symbol.
+
+    Args:
+        category (str): Category (spot, linear, inverse, option)
+        symbol (str): Symbol (e.g., BTCUSDT)
+        limit (int): Number of trades to retrieve
+
+    Returns:
+        Dict: Recent public trades
+
+    Example:
+        get_public_trade_history("linear", "BTCUSDT", 50)
+
+    Reference:
+        https://bybit-exchange.github.io/docs/v5/market/recent-trade
+    """
+    try:
+        result = bybit_service.get_public_trade_history(category, symbol, limit)
+        if result.get("retCode") != 0:
+            logger.error(f"Failed to get public trade history: {result.get('retMsg')}")
+            return {"error": result.get("retMsg")}
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get public trade history: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def get_funding_rate_history(
+    category: str = Field(description="Category (linear, inverse)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    startTime: Optional[int] = Field(default=None, description="Start time in milliseconds"),
+    endTime: Optional[int] = Field(default=None, description="End time in milliseconds"),
+    limit: int = Field(default=200, description="Number of records to retrieve")
+) -> Dict:
+    """
+    Get historical funding rates for a perpetual/futures symbol.
+
+    Args:
+        category (str): Category (linear, inverse)
+        symbol (str): Symbol (e.g., BTCUSDT)
+        startTime (Optional[int]): Start time in milliseconds
+        endTime (Optional[int]): End time in milliseconds
+        limit (int): Number of records to retrieve
+
+    Returns:
+        Dict: Funding rate history
+
+    Example:
+        get_funding_rate_history("linear", "BTCUSDT", limit=10)
+
+    Reference:
+        https://bybit-exchange.github.io/docs/v5/market/history-fund-rate
+    """
+    try:
+        result = bybit_service.get_funding_rate_history(category, symbol, startTime, endTime, limit)
+        if result.get("retCode") != 0:
+            logger.error(f"Failed to get funding rate history: {result.get('retMsg')}")
+            return {"error": result.get("retMsg")}
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get funding rate history: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def get_open_interest(
+    category: str = Field(description="Category (linear, inverse)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    intervalTime: str = Field(default="1h", description="Interval (5min, 15min, 30min, 1h, 4h, 1d)"),
+    startTime: Optional[int] = Field(default=None, description="Start time in milliseconds"),
+    endTime: Optional[int] = Field(default=None, description="End time in milliseconds"),
+    limit: int = Field(default=50, description="Number of records to retrieve")
+) -> Dict:
+    """
+    Get open interest of a symbol over time.
+
+    Args:
+        category (str): Category (linear, inverse)
+        symbol (str): Symbol (e.g., BTCUSDT)
+        intervalTime (str): Interval (5min, 15min, 30min, 1h, 4h, 1d)
+        startTime (Optional[int]): Start time in milliseconds
+        endTime (Optional[int]): End time in milliseconds
+        limit (int): Number of records to retrieve
+
+    Returns:
+        Dict: Open interest data
+
+    Example:
+        get_open_interest("linear", "BTCUSDT", "1h", limit=24)
+
+    Reference:
+        https://bybit-exchange.github.io/docs/v5/market/open-interest
+    """
+    try:
+        result = bybit_service.get_open_interest(category, symbol, intervalTime, startTime, endTime, limit)
+        if result.get("retCode") != 0:
+            logger.error(f"Failed to get open interest: {result.get('retMsg')}")
+            return {"error": result.get("retMsg")}
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get open interest: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def get_fee_rate(
+    category: str = Field(description="Category (spot, linear, inverse, option)"),
+    symbol: Optional[str] = Field(default=None, description="Symbol (e.g., BTCUSDT)"),
+    baseCoin: Optional[str] = Field(default=None, description="Base coin (e.g., BTC)")
+) -> Dict:
+    """
+    Get maker/taker trading fee rates.
+
+    Args:
+        category (str): Category (spot, linear, inverse, option)
+        symbol (Optional[str]): Symbol (e.g., BTCUSDT)
+        baseCoin (Optional[str]): Base coin (e.g., BTC)
+
+    Returns:
+        Dict: Fee rate information
+
+    Example:
+        get_fee_rate("linear", "BTCUSDT")
+
+    Reference:
+        https://bybit-exchange.github.io/docs/v5/account/fee-rate
+    """
+    try:
+        result = bybit_service.get_fee_rate(category, symbol, baseCoin)
+        if result.get("retCode") != 0:
+            logger.error(f"Failed to get fee rate: {result.get('retMsg')}")
+            return {"error": result.get("retMsg")}
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get fee rate: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def get_server_time() -> Dict:
+    """
+    Get the Bybit server time (useful for clock synchronization).
+
+    Returns:
+        Dict: Server time
+
+    Example:
+        get_server_time()
+
+    Reference:
+        https://bybit-exchange.github.io/docs/v5/market/time
+    """
+    try:
+        result = bybit_service.get_server_time()
+        if result.get("retCode") != 0:
+            logger.error(f"Failed to get server time: {result.get('retMsg')}")
+            return {"error": result.get("retMsg")}
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get server time: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def amend_order(
+    category: str = Field(description="Category (linear, inverse, spot, option)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    orderId: Optional[str] = Field(default=None, description="Order ID (either orderId or orderLinkId required)"),
+    orderLinkId: Optional[str] = Field(default=None, description="Order link ID"),
+    qty: Optional[str] = Field(default=None, description="New order quantity"),
+    price: Optional[str] = Field(default=None, description="New order price"),
+    triggerPrice: Optional[str] = Field(default=None, description="New trigger price"),
+    takeProfit: Optional[str] = Field(default=None, description="New take profit price"),
+    stopLoss: Optional[str] = Field(default=None, description="New stop loss price")
+) -> Dict:
+    """
+    Amend (modify) an existing open order in place, instead of cancel + re-place.
+
+    Args:
+        category (str): Category (linear, inverse, spot, option)
+        symbol (str): Symbol (e.g., BTCUSDT)
+        orderId (Optional[str]): Order ID (either orderId or orderLinkId required)
+        orderLinkId (Optional[str]): Order link ID
+        qty (Optional[str]): New order quantity
+        price (Optional[str]): New order price
+        triggerPrice (Optional[str]): New trigger price
+        takeProfit (Optional[str]): New take profit price
+        stopLoss (Optional[str]): New stop loss price
+
+    Returns:
+        Dict: Amend result
+
+    Example:
+        amend_order("linear", "BTCUSDT", orderId="123", price="51000")
+
+    Reference:
+        https://bybit-exchange.github.io/docs/v5/order/amend-order
+    """
+    try:
+        guard = _trading_guard()
+        if guard:
+            return guard
+        if not orderId and not orderLinkId:
+            return {"error": "Either orderId or orderLinkId is required."}
+        result = bybit_service.amend_order(
+            category, symbol, orderId, orderLinkId, qty, price, triggerPrice, takeProfit, stopLoss
+        )
+        if result.get("retCode") != 0:
+            logger.error(f"Failed to amend order: {result.get('retMsg')}")
+            return {"error": result.get("retMsg")}
+        return result
+    except Exception as e:
+        logger.error(f"Failed to amend order: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def cancel_all_orders(
+    category: str = Field(description="Category (spot, linear, inverse, option)"),
+    symbol: Optional[str] = Field(default=None, description="Symbol (e.g., BTCUSDT)"),
+    baseCoin: Optional[str] = Field(default=None, description="Base coin"),
+    settleCoin: Optional[str] = Field(default=None, description="Settle coin (e.g., USDT)"),
+    orderFilter: Optional[str] = Field(default=None, description="Order filter (Order, tpslOrder, StopOrder)")
+) -> Dict:
+    """
+    Cancel all open orders, optionally scoped by symbol/baseCoin/settleCoin.
+
+    Args:
+        category (str): Category (spot, linear, inverse, option)
+        symbol (Optional[str]): Symbol (e.g., BTCUSDT)
+        baseCoin (Optional[str]): Base coin
+        settleCoin (Optional[str]): Settle coin (e.g., USDT)
+        orderFilter (Optional[str]): Order filter (Order, tpslOrder, StopOrder)
+
+    Returns:
+        Dict: Cancellation result (list of cancelled orders)
+
+    Example:
+        cancel_all_orders("linear", symbol="BTCUSDT")
+
+    Reference:
+        https://bybit-exchange.github.io/docs/v5/order/cancel-all
+    """
+    try:
+        guard = _trading_guard()
+        if guard:
+            return guard
+        result = bybit_service.cancel_all_orders(category, symbol, baseCoin, settleCoin, orderFilter)
+        if result.get("retCode") != 0:
+            logger.error(f"Failed to cancel all orders: {result.get('retMsg')}")
+            return {"error": result.get("retMsg")}
+        return result
+    except Exception as e:
+        logger.error(f"Failed to cancel all orders: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def market_snapshot(
+    category: str = Field(description="Category (spot, linear, inverse)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    interval: str = Field(default="60", description="Kline interval (1, 5, 15, 60, 240, D, ...)"),
+    kline_limit: int = Field(default=50, description="Number of kline records"),
+    orderbook_limit: int = Field(default=25, description="Orderbook depth"),
+    trades_limit: int = Field(default=25, description="Number of recent trades")
+) -> Dict:
+    """
+    Composite market view in a single call: orderbook + ticker + kline + instrument info
+    + recent trades (plus funding rate and open interest for linear/inverse). Reduces
+    round-trips and token usage. Each section is independent: one failing call returns an
+    {"error": ...} entry for that section without failing the whole snapshot.
+
+    Args:
+        category (str): Category (spot, linear, inverse)
+        symbol (str): Symbol (e.g., BTCUSDT)
+        interval (str): Kline interval
+        kline_limit (int): Number of kline records
+        orderbook_limit (int): Orderbook depth
+        trades_limit (int): Number of recent trades
+
+    Returns:
+        Dict: Combined market snapshot
+
+    Example:
+        market_snapshot("linear", "BTCUSDT")
+    """
+    try:
+        return bybit_service.market_snapshot(
+            category, symbol, interval, kline_limit, orderbook_limit, trades_limit
+        )
+    except Exception as e:
+        logger.error(f"Failed to build market snapshot: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def validate_order(
+    category: str = Field(description="Category (spot, linear, inverse)"),
+    symbol: str = Field(description="Symbol (e.g., BTCUSDT)"),
+    side: str = Field(description="Order direction (Buy, Sell)"),
+    orderType: str = Field(description="Order type (Market, Limit)"),
+    qty: str = Field(description="Order quantity"),
+    price: Optional[str] = Field(default=None, description="Order price (for limit orders)"),
+    positionIdx: Optional[str] = Field(default=None, description="Position index (1: Long, 2: Short) for futures")
+) -> Dict:
+    """
+    Pre-flight validation for an order WITHOUT placing it. Checks input fields, that the
+    symbol exists and is trading, minimum order quantity from instrument info, and the
+    MAX_ORDER_SIZE_USDT cap. Returns structured {valid, errors, warnings, info}.
+
+    Use this before place_order to catch mistakes early. This is read-only and is NOT
+    blocked by READONLY_MODE / TRADING_ENABLED.
+
+    Args:
+        category (str): Category (spot, linear, inverse)
+        symbol (str): Symbol (e.g., BTCUSDT)
+        side (str): Order direction (Buy, Sell)
+        orderType (str): Order type (Market, Limit)
+        qty (str): Order quantity
+        price (Optional[str]): Order price (for limit orders)
+        positionIdx (Optional[str]): Position index for futures (1: Long, 2: Short)
+
+    Returns:
+        Dict: {"valid": bool, "errors": [...], "warnings": [...], "info": {...}}
+
+    Example:
+        validate_order("spot", "BTCUSDT", "Buy", "Limit", "0.001", price="50000")
+    """
+    errors = []
+    warnings = []
+    info: Dict = {}
+    try:
+        if side not in ("Buy", "Sell"):
+            errors.append(f"Invalid side: {side}. Must be 'Buy' or 'Sell'.")
+        if orderType not in ("Market", "Limit"):
+            errors.append(f"Invalid orderType: {orderType}. Must be 'Market' or 'Limit'.")
+        if category not in ("spot", "linear", "inverse", "option"):
+            errors.append(f"Invalid category: {category}.")
+        if orderType == "Limit" and price is None:
+            errors.append("price is required for Limit orders.")
+        if category in ("linear", "inverse") and (positionIdx is None or str(positionIdx) not in ("1", "2")):
+            errors.append("positionIdx ('1' Long / '2' Short) is required for futures.")
+
+        try:
+            qty_f = float(qty)
+            if qty_f <= 0:
+                errors.append("qty must be positive.")
+        except (TypeError, ValueError):
+            errors.append(f"Invalid qty: {qty}. Must be a number.")
+            qty_f = None
+
+        # Instrument check (symbol exists / trading status / min qty)
+        instr = bybit_service.get_instruments_info(category, symbol)
+        if instr.get("retCode") != 0:
+            warnings.append(f"Could not fetch instrument info: {instr.get('retMsg')}")
+        else:
+            rows = instr.get("result", {}).get("list") or []
+            if not rows:
+                errors.append(f"Symbol {symbol} not found in category {category}.")
+            else:
+                row = rows[0]
+                info["status"] = row.get("status")
+                if row.get("status") and row.get("status") != "Trading":
+                    warnings.append(f"Symbol status is '{row.get('status')}', not 'Trading'.")
+                lot = row.get("lotSizeFilter") or {}
+                min_qty = lot.get("minOrderQty") or lot.get("basePrecision")
+                if min_qty is not None:
+                    info["minOrderQty"] = min_qty
+                    try:
+                        if qty_f is not None and category != "spot" and qty_f < float(min_qty):
+                            errors.append(f"qty {qty} is below minOrderQty {min_qty}.")
+                    except (TypeError, ValueError):
+                        pass
+
+        # Size cap (reuses the same estimator as place_order)
+        size_error = _check_order_size(category, symbol, side, orderType, qty, price)
+        if size_error:
+            errors.append(size_error["error"])
+
+        return {"valid": len(errors) == 0, "errors": errors, "warnings": warnings, "info": info}
+    except Exception as e:
+        logger.error(f"Failed to validate order: {e}", exc_info=True)
+        return {"valid": False, "errors": [str(e)], "warnings": warnings, "info": info}
+
+
 @mcp.prompt()
 def prompt(message: str) -> str:
     return f"""
-You are an AI assistant providing access to Bybit API functionalities through available tools.
-Analyze user requests and utilize the appropriate tools to fetch data, manage account information, or execute/manage orders as requested.
+You are an AI assistant providing access to the Bybit V5 API through the available tools.
+Analyze user requests and use the appropriate tools to fetch market data, manage account
+information, or execute/manage orders.
 
-Available tools:
-- get_orderbook(category, symbol, limit) - Get orderbook: Retrieve orderbook information for a specific category and symbol. limit parameter can be used to specify the number of orderbook entries to retrieve.
-- get_kline(category, symbol, interval, start, end, limit) - Get K-line data: Retrieve K-line data for a specific category and symbol. interval, start, end, and limit parameters can be used to specify the retrieval range and number of records.
-- get_tickers(category, symbol) - Get ticker information: Retrieve ticker information for a specific category and symbol.
-- get_trades(category, symbol, limit) - Get recent trade history: Retrieve recent trade history for a specific category and symbol. limit parameter can be used to specify the number of trades to retrieve.
-- get_wallet_balance(accountType, coin) - Get wallet balance: Retrieve wallet balance information for a specific account type and coin.
-- get_positions(category, symbol) - Get position information: Retrieve position information for a specific category and symbol.
-- place_order(category, symbol, side, orderType, qty, price, timeInForce, orderLinkId, isLeverage, orderFilter, triggerPrice, triggerBy, orderIv, positionIdx) - Execute order: Execute an order. Various parameters can be used to specify the details of the order.
-- cancel_order(category, symbol, orderId, orderLinkId, orderFilter) - Cancel order: Cancel a specific order. orderId, orderLinkId, and orderFilter parameters can be used to specify the order to cancel.
-- get_order_history(category, symbol, orderId, orderLinkId, orderFilter, orderStatus, startTime, endTime, limit) - Get order history: Retrieve order history. Various parameters can be used to specify the retrieval range and conditions.
-- get_open_orders(category, symbol, orderId, orderLinkId, orderFilter, limit) - Get open orders: Retrieve open orders. limit parameter can be used to specify the number of orders to retrieve.
-- get_leverage_info(category, symbol) - Get leverage information: Retrieve leverage information for a specific category and symbol.
-- set_trading_stop(category, symbol, takeProfit, stopLoss, trailingStop, positionIdx) - Set trading stop: Set trading stop. takeProfit, stopLoss, trailingStop, and positionIdx parameters can be used to specify the settings.
-- set_margin_mode(category, symbol, tradeMode, buyLeverage, sellLeverage) - Set margin mode: Set margin mode. tradeMode, buyLeverage, and sellLeverage parameters can be used to specify the settings.
-- get_api_key_information() - Get API key information: Retrieve API key information.
-- get_instruments_info(category, symbol, status, baseCoin) - Get exchange information: Retrieve exchange information. status and baseCoin parameters can be used to specify the retrieval conditions.
+Safety: mutating tools (place_order, cancel_order, cancel_all_orders, amend_order,
+set_trading_stop, set_margin_mode, set_leverage) are blocked unless TRADING_ENABLED=true,
+and are always blocked when READONLY_MODE=true. Order size is capped by MAX_ORDER_SIZE_USDT.
+Prefer validate_order (or place_order with dry_run=true) before placing real orders.
 
-Note: This tool executes a backtest simulation, it does not interact with the live Bybit API for trading.
-Invokes the `run_strategy` function from `backtest.py`.
+Market data tools:
+- get_orderbook(category, symbol, limit)
+- get_kline(category, symbol, interval, start, end, limit)
+- get_tickers(category, symbol)
+- get_public_trade_history(category, symbol, limit)
+- get_instruments_info(category, symbol, status, baseCoin)
+- get_funding_rate_history(category, symbol, startTime, endTime, limit)
+- get_open_interest(category, symbol, intervalTime, startTime, endTime, limit)
+- get_fee_rate(category, symbol, baseCoin)
+- get_server_time()
+- market_snapshot(category, symbol, interval, kline_limit, orderbook_limit, trades_limit) - composite market view in one call
 
-Args:
-    start_time: Start time for the backtest period (millisecond timestamp).
-    end_time: End time for the backtest period (millisecond timestamp).
-    strategy_vars: A dictionary containing the strategy definition.
-                   Refer to the `run_strategy` function in `backtest.py` for the expected structure.
-                   This includes initial balance, indicator settings, buy/sell conditions, and position settings.
+Account tools:
+- get_wallet_balance(accountType, coin)
+- get_positions(category, symbol)
+- get_order_history(category, symbol, orderId, orderLinkId, orderFilter, orderStatus, startTime, endTime, limit)
+- get_open_orders(category, symbol, orderId, orderLinkId, orderFilter, limit)
+- get_api_key_information()
 
-Returns:
-    Dict: The results of the backtest, including performance metrics and trade history.
-             Returns an error dictionary if the backtest fails.
+Trading tools (mutating):
+- validate_order(category, symbol, side, orderType, qty, price, positionIdx) - pre-flight check, never places an order
+- place_order(category, symbol, side, orderType, qty, price, positionIdx, ..., dry_run)
+- amend_order(category, symbol, orderId, orderLinkId, qty, price, triggerPrice, takeProfit, stopLoss)
+- cancel_order(category, symbol, orderId, orderLinkId, orderFilter)
+- cancel_all_orders(category, symbol, baseCoin, settleCoin, orderFilter)
+- set_trading_stop(category, symbol, takeProfit, stopLoss, trailingStop, positionIdx)
+- set_margin_mode(category, symbol, tradeMode, buyLeverage, sellLeverage)
+- set_leverage(category, symbol, buyLeverage, sellLeverage)
 
 User message: {message}
 """
@@ -673,7 +1199,7 @@ def main():
         logger.info("MCP server starting...")
         print("MCP server starting...", file=sys.stderr)
 
-        # BEZPIECZENSTWO: NIE logujemy kluczy API
+        # SECURITY: API keys are never logged.
 
         mcp.run(transport="stdio")
     except Exception as e:
