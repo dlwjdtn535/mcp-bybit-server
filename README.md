@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/dlwjdtn535-mcp-bybit-server-badge.png)](https://mseep.ai/app/dlwjdtn535-mcp-bybit-server)
+
 # MCP Bybit API Interface
 [![smithery badge](https://smithery.ai/badge/@dlwjdtn535/mcp-bybit-server)](https://smithery.ai/server/@dlwjdtn535/mcp-bybit-server)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg)](https://buymeacoffee.com/dlwjdtn535)
